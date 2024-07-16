@@ -37,13 +37,6 @@ class ControlPanelDialog(QDialog):
 
 
         
-#        for i, (peripheral, status) in enumerate(zip(peripherals, statuses)):
-#            self.peripherals_table.setItem(i, 0, QTableWidgetItem(peripheral))
-#            self.peripherals_table.setItem(i, 1, QTableWidgetItem(status))
-#            color = self.get_color(status[i])
-#            self.peripherals_table.item(i, 1).setBackground(color)
-
-
         self.peripherals_table.cellDoubleClicked.connect(self.show_logs)
         self.peripherals_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)  # Stretch columns to fit
         layout.addWidget(self.peripherals_table)
@@ -86,7 +79,6 @@ class PeripheralDialog(QDialog):
 
         self.logs_text_edit = QTextEdit()
         self.logs_text_edit.setReadOnly(True)
-        #self.logs_text_edit.setText(f"Logs for {peripheral_name}:\n\n[INFO] Peripheral initialized\n[ERROR] Peripheral error\n[INFO] Peripheral status OK")
         
         layout.addWidget(self.logs_text_edit)
 
@@ -113,9 +105,15 @@ class ArmDisarmDialog(QDialog):
         self.enter_shortcut = QShortcut(QKeySequence("Return"), self)
         self.enter_shortcut.activated.connect(self.change_status)
 
-        # INSERT FUNCTION FOR ARMING/DISARMING THE ROV
-
         self.setLayout(layout)
+
+    def arm_disarm_rov(self):
+        if self.rov_disarmed:
+            # ARM THE ROV 
+            self.change_status()
+        else:
+            # DISARM THE ROV
+            self.change_status()
 
     def change_status(self):
         self.rov_disarmed = not self.rov_disarmed
@@ -575,7 +573,7 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
-        self.label.setText(_translate("MainWindow", "PoliTOcean"))
+        self.politocean_label.setText(_translate("MainWindow", "PoliTOcean"))
         self.main_camera_label.setText(_translate("MainWindow", "MAIN CAMERA"))
         self.control_panel.setText(_translate("MainWindow", "CONTROL PANEL"))
         self.camera1_label.setText(_translate("MainWindow", "CAMERA 1"))

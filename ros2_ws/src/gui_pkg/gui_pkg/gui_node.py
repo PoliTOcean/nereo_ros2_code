@@ -46,8 +46,6 @@ class ROS2ImageNode(Node):
                 self.barometer_temperature_callback,
                 10)
 
-        # In diagnostic I was thinking about collecting data, passing data to a function that would update the gui. The number of logs could vary, then we have to
-        # calculate the dimension of the table and update it accordingly
 
         self.subscription_barometer_diagnostic = self.create_subscription(
                 DiagnosticArray,
@@ -215,7 +213,7 @@ class ROS2ImageNode(Node):
 class ImageThread(QThread):
     image_received = pyqtSignal(QImage)
 
-    def __init__(self):
+    def __init__(self, ui):
         super().__init__()
         self.ros2_node = ROS2ImageNode(ui)
         self.ros2_node.image_signal.connect(self.image_received) # Maybe should be self.image_received.emit
@@ -238,11 +236,9 @@ def main():
 	ui = MainWindowUi()
 	ui.setupUi(main_window)
 	
-	image_thread = ImageThread()
+	image_thread = ImageThread(ui)
 	image_thread.start()
-	
-    image_thread.ros2_node.image_received.connect(ui.update_image_widget)
-
+	image_thread.ros2_node.image_received.connect(ui.update_image_widget)
 	main_window.show()
 	sys.exit(app.exec())
 	
