@@ -7,17 +7,21 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QApplication,  QTableWidgetItem, QMainWindow
 # removed QHeaderView, QDialog, QDialogButtonBox, QTextEdit, QProgressBar, QSizePolicy, QWidget QLabel, QVBoxLayout, QPushButton, QTableWidget
 from PyQt6.QtGui import QImage # REMOVED QKeyEvent, QPixmap, QKeySequence, QShortcut
-from PyQt6.QtCore import QThread, pyqtSignal # removed Qt, QTimer, pyqtSlot
+from PyQt6.QtCore import QObject, QThread, pyqtSignal # removed Qt, QTimer, pyqtSlot
 from cv_bridge import CvBridge
 from tf_transformations import euler_from_quaternion
+from . import MainWindowUtils
+from sensor_msgs.msg import Image, Imu, FluidPressure, Temperature, Joy
+from diagnostic_msgs.msg import DiagnosticArray
 
-from MainWindowUtils import Ui_MainWindow as MainWindowUi
+class ROS2ImageNodeSignals(QObject):
+    image_signal = pyqtSignal(QImage)
 
 class ROS2ImageNode(Node):
-    image_signal = pyqtSignal(QImage)
 
     def __init__(self, ui):
         super().__init__('gui_node')
+        self.signals = ROS2ImageNodeSignals()
 
         self.ui = ui
 
@@ -59,11 +63,11 @@ class ROS2ImageNode(Node):
                 self.imu_diagnostic_callback,
                 10)
 
-        self.subscription_thrust_status = self.create_subscription(
-                ThrusterStatuses, # Check if this is the correct message type
-                'thruster_status',
-                self.thrust_status_callback,
-                10)
+#        self.subscription_thrust_status = self.create_subscription(
+#                ThrusterStatuses, # Check if this is the correct message type
+#                'thruster_status',
+#                self.thrust_status_callback,
+#                10)
 
         self.subscription_diagnostic_messages = self.create_subscription(
                 DiagnosticArray,
@@ -117,7 +121,7 @@ class ROS2ImageNode(Node):
         height, width, channel = cv_image.shape
         bytesPerLine = 3 * width
         qt_image = QImage(cv_image.data, width, height, bytesPerLine, QImage.Format.Format_RGB888).rgbSwapped()
-        self.image_signal.emit(qt_image)
+        self.signals.image_signal.emit(qt_image)
 
 
     def imu_data_callback(self, msg):
@@ -172,8 +176,8 @@ class ROS2ImageNode(Node):
         self.handle_diagnostics(msg.status, "IMU", 2)
 
 
-    def thrust_status_callback(self, msg):
-        pass
+#    def thrust_status_callback(self, msg):
+#        pass
 
 
     def diagnostic_messages_callback(self, msg):
@@ -216,7 +220,7 @@ class ImageThread(QThread):
     def __init__(self, ui):
         super().__init__()
         self.ros2_node = ROS2ImageNode(ui)
-        self.ros2_node.image_signal.connect(self.image_received) # Maybe should be self.image_received.emit
+        self.ros2_node.signals.image_signal.connect(self.image_received.emit)
 
     def run(self):
         rclpy.spin(self.ros2_node)
@@ -233,12 +237,12 @@ def main():
 	app = QApplication(sys.argv)
 	
 	main_window = QMainWindow()
-	ui = MainWindowUi()
+	ui = MainWindowUtils.Ui_MainWindow()
 	ui.setupUi(main_window)
 	
 	image_thread = ImageThread(ui)
 	image_thread.start()
-	image_thread.ros2_node.image_received.connect(ui.update_image_widget)
+	image_thread.ros2_node.signals.image_signal.connect(ui.update_image_widget)
 	main_window.show()
 	sys.exit(app.exec())
 	

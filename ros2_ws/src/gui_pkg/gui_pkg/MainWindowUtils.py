@@ -195,7 +195,7 @@ class Ui_MainWindow(object):
         self.power_status.setMinimumSize(QtCore.QSize(40, 40))
         self.power_status.setMaximumSize(QtCore.QSize(60, 60))
         self.power_status.setText("")
-        self.power_status.setPixmap(QtGui.QPixmap("images/reb_power.png"))
+        self.power_status.setPixmap(QtGui.QPixmap("images/red_power.png"))
         self.power_status.setScaledContents(True)
         self.power_status.setObjectName("power_status")
         self.power_status.setMargin(10)

@@ -11,7 +11,11 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools'],
+    install_requires=[
+        'setuptools',
+        'std_msg',
+        'sensor_msgs'
+        ],
     zip_safe=True,
     maintainer='Salvatore Lo Sardo',
     maintainer_email='losardosalvatorejr@gmail.com',
