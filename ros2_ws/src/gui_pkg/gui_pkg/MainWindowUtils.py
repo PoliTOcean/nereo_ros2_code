@@ -1,5 +1,5 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
-from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QPushButton, 
+from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QDialogButtonBox, QTextEdit)
 from PyQt6.QtGui import QShortcut, QKeySequence, QPixmap
 from PyQt6.QtCore import Qt
@@ -21,7 +21,7 @@ class ControlPanelDialog(QDialog):
         self.peripherals_table = QTableWidget(5, 2)
         self.peripherals_table.setHorizontalHeaderLabels(["Peripheral", "Status"])
         self.peripherals_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        
+
         self.peripherals = ["Camera", "Barometer", "IMU", "Thrusters", "Diagnostic MicroROS"]
 
         # Every log will contain a string  like "[INFO] description of the log"
@@ -36,7 +36,7 @@ class ControlPanelDialog(QDialog):
             self.peripherals_table.setItem(i, 0, QTableWidgetItem(self.peripherals[i]))
 
 
-        
+
         self.peripherals_table.cellDoubleClicked.connect(self.show_logs)
         self.peripherals_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)  # Stretch columns to fit
         layout.addWidget(self.peripherals_table)
@@ -79,7 +79,7 @@ class PeripheralDialog(QDialog):
 
         self.logs_text_edit = QTextEdit()
         self.logs_text_edit.setReadOnly(True)
-        
+
         layout.addWidget(self.logs_text_edit)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
@@ -93,7 +93,7 @@ class PeripheralDialog(QDialog):
 
 class ArmDisarmDialog(QDialog):
     def __init__(self, arm_button: QPushButton):
-        super().__init__()  
+        super().__init__()
         self.setWindowTitle("Confirm")
         self.setGeometry(400, 400, 300, 150)
         self.rov_disarmed = False
@@ -109,7 +109,7 @@ class ArmDisarmDialog(QDialog):
 
     def arm_disarm_rov(self):
         if self.rov_disarmed:
-            # ARM THE ROV 
+            # ARM THE ROV
             self.change_status()
         else:
             # DISARM THE ROV
@@ -126,6 +126,10 @@ class ArmDisarmDialog(QDialog):
 class Ui_MainWindow(object):
 
     def setupUi(self, MainWindow):
+
+        self.top_image_path = "./images/upPNG_white.png"
+        self.side_image_path = "./images/sidePNG_white.png"
+
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(1093, 780)
         MainWindow.setMinimumSize(QtCore.QSize(900, 700))
@@ -195,17 +199,17 @@ class Ui_MainWindow(object):
         self.power_status.setMinimumSize(QtCore.QSize(40, 40))
         self.power_status.setMaximumSize(QtCore.QSize(60, 60))
         self.power_status.setText("")
-        self.power_status.setPixmap(QtGui.QPixmap("images/red_power.png"))
+        self.power_status.setPixmap(QtGui.QPixmap("./images/red_power.png"))
         self.power_status.setScaledContents(True)
         self.power_status.setObjectName("power_status")
         self.power_status.setMargin(10)
         self.top_bar.addWidget(self.power_status)
-        
+
         self.armed_status = QtWidgets.QLabel(parent=self.frame)
         self.armed_status.setMinimumSize(QtCore.QSize(40, 40))
         self.armed_status.setMaximumSize(QtCore.QSize(60, 60))
         self.armed_status.setText("")
-        self.armed_status.setPixmap(QtGui.QPixmap("images/red_shield.png"))
+        self.armed_status.setPixmap(QtGui.QPixmap("./images/red_shield.png"))
         self.armed_status.setScaledContents(True)
         self.armed_status.setObjectName("armed_status")
         self.armed_status.setMargin(6)
@@ -367,7 +371,7 @@ class Ui_MainWindow(object):
         # IMU images
         self.rov_imgs_box = QtWidgets.QHBoxLayout()
         self.rov_imgs_box.setObjectName("rov_imgs_box")
-        
+
         self.top_image = QtWidgets.QLabel(parent=self.frame2)
         self.top_image.setMaximumSize(QtCore.QSize(100, 100))
         self.top_image.setStyleSheet("")
@@ -375,34 +379,34 @@ class Ui_MainWindow(object):
         self.top_image.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
         self.top_image.setLineWidth(5)
         self.top_image.setText("")
-        self.top_image.setPixmap(QtGui.QPixmap("images/upPNG_white.png"))
+        self.top_image.setPixmap(QtGui.QPixmap(self.top_image_path))
         self.top_image.setScaledContents(True)
         self.top_image.setObjectName("top_image")
         self.rov_imgs_box.addWidget(self.top_image)
-        
+
         self.side_image = QtWidgets.QLabel(parent=self.frame2)
         self.side_image.setMaximumSize(QtCore.QSize(100, 100))
         self.side_image.setFrameShape(QtWidgets.QFrame.Shape.WinPanel)
         self.side_image.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
         self.side_image.setLineWidth(5)
         self.side_image.setText("")
-        self.side_image.setPixmap(QtGui.QPixmap("images/sidePNG_white.png"))
+        self.side_image.setPixmap(QtGui.QPixmap(self.side_image_path))
         self.side_image.setScaledContents(True)
         self.side_image.setObjectName("side_image")
         self.rov_imgs_box.addWidget(self.side_image)
         self.imu_info.addLayout(self.rov_imgs_box)
-        
+
         # Roll, pitch, yaw
         self.roll_box = QtWidgets.QHBoxLayout()
         self.roll_box.setObjectName("roll_box")
-        
+
         self.roll_text = QtWidgets.QLabel(parent=self.frame2)
         self.roll_text.setMinimumSize(QtCore.QSize(0, 40))
         font = QtGui.QFont()
         font.setFamily("FreeSans")
         font.setPointSize(12)
         font.setBold(True)
-        
+
         self.roll_text.setFont(font)
         self.roll_text.setFrameShape(QtWidgets.QFrame.Shape.WinPanel)
         self.roll_text.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
@@ -410,7 +414,7 @@ class Ui_MainWindow(object):
         self.roll_text.setObjectName("roll_text")
 
         self.roll_box.addWidget(self.roll_text)
-        
+
         self.roll_value = QtWidgets.QLabel(parent=self.frame2)
         self.roll_value.setMinimumSize(QtCore.QSize(0, 40))
         font = QtGui.QFont()
@@ -421,13 +425,13 @@ class Ui_MainWindow(object):
         self.roll_value.setLineWidth(2)
         self.roll_value.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.roll_value.setObjectName("roll_value")
-        
+
         self.roll_box.addWidget(self.roll_value)
         self.imu_info.addLayout(self.roll_box)
-        
+
         self.pitch_box = QtWidgets.QHBoxLayout()
         self.pitch_box.setObjectName("pitch_box")
-        
+
         self.pitch_text = QtWidgets.QLabel(parent=self.frame2)
         self.pitch_text.setMinimumSize(QtCore.QSize(0, 40))
         font = QtGui.QFont()
@@ -440,9 +444,9 @@ class Ui_MainWindow(object):
         self.pitch_text.setLineWidth(2)
         self.pitch_text.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.pitch_text.setObjectName("pitch_text")
-        
+
         self.pitch_box.addWidget(self.pitch_text)
-        
+
         self.pitch_value = QtWidgets.QLabel(parent=self.frame2)
         self.pitch_value.setMinimumSize(QtCore.QSize(0, 40))
         font = QtGui.QFont()
@@ -453,13 +457,13 @@ class Ui_MainWindow(object):
         self.pitch_value.setLineWidth(2)
         self.pitch_value.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.pitch_value.setObjectName("pitch_value")
-        
+
         self.pitch_box.addWidget(self.pitch_value)
         self.imu_info.addLayout(self.pitch_box)
-        
+
         self.yaw_box = QtWidgets.QHBoxLayout()
         self.yaw_box.setObjectName("yaw_box")
-        
+
         self.yaw_text = QtWidgets.QLabel(parent=self.frame2)
         self.yaw_text.setMinimumSize(QtCore.QSize(0, 40))
         font = QtGui.QFont()
@@ -472,9 +476,9 @@ class Ui_MainWindow(object):
         self.yaw_text.setLineWidth(2)
         self.yaw_text.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.yaw_text.setObjectName("yaw_text")
-        
+
         self.yaw_box.addWidget(self.yaw_text)
-        
+
         self.yaw_value = QtWidgets.QLabel(parent=self.frame2)
         self.yaw_value.setMinimumSize(QtCore.QSize(0, 40))
         font = QtGui.QFont()
@@ -485,21 +489,21 @@ class Ui_MainWindow(object):
         self.yaw_value.setLineWidth(2)
         self.yaw_value.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.yaw_value.setObjectName("yaw_value")
-        
+
         self.yaw_box.addWidget(self.yaw_value)
         self.imu_info.addLayout(self.yaw_box)
         self.sensors_widget.addWidget(self.frame2)
-        
+
         # Barometer info
         self.barometer_info = QtWidgets.QVBoxLayout()
         self.barometer_info.setObjectName("barometer_info")
-        
+
         self.depth_img_box = QtWidgets.QHBoxLayout()
         self.depth_img_box.setObjectName("depth_img_box")
         self.depth_image = QtWidgets.QLabel(parent=self.sensors_frame_2)
         self.depth_image.setMaximumSize(QtCore.QSize(70, 70))
         self.depth_image.setText("")
-        self.depth_image.setPixmap(QtGui.QPixmap("images/depth2_white.png"))
+        self.depth_image.setPixmap(QtGui.QPixmap("./images/depth2_white.png"))
         self.depth_image.setScaledContents(True)
         self.depth_image.setObjectName("depth_image")
         self.depth_img_box.addWidget(self.depth_image)
@@ -563,9 +567,9 @@ class Ui_MainWindow(object):
 
     def check_armed(self):
         if self.control_panel_dialog.arm_disarm_dialog.rov_disarmed == False:
-            self.armed_status.setPixmap(QtGui.QPixmap("images/red_shield.png"))
+            self.armed_status.setPixmap(QtGui.QPixmap("./images/red_shield.png"))
         else:
-            self.armed_status.setPixmap(QtGui.QPixmap("images/green_shield.png"))
+            self.armed_status.setPixmap(QtGui.QPixmap("./images/green_shield.png"))
 
     def update_image_widget(self, qt_image):
         self.main_camera_image.setPixmap(QPixmap.fromImage(qt_image))
@@ -586,7 +590,7 @@ class Ui_MainWindow(object):
         self.yaw_value.setText(_translate("MainWindow", "0°"))
         self.depth_text.setText(_translate("MainWindow", "DEPTH"))
         self.dept_value.setText(_translate("MainWindow", "23 m"))
-        
+
 
     def getShortcuts(self, MainWindow):
         # Create a new shortcut for switching to the main camera

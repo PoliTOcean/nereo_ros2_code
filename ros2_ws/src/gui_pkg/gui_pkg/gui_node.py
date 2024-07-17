@@ -1,13 +1,14 @@
 import sys
+import os
 import time, cv2
 import rclpy
 from rclpy.node import Node
+import threading
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QApplication,  QTableWidgetItem, QMainWindow
-# removed QHeaderView, QDialog, QDialogButtonBox, QTextEdit, QProgressBar, QSizePolicy, QWidget QLabel, QVBoxLayout, QPushButton, QTableWidget
-from PyQt6.QtGui import QImage # REMOVED QKeyEvent, QPixmap, QKeySequence, QShortcut
-from PyQt6.QtCore import QObject, QThread, pyqtSignal # removed Qt, QTimer, pyqtSlot
+from PyQt6.QtGui import QImage
+from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from cv_bridge import CvBridge
 from tf_transformations import euler_from_quaternion
 from . import MainWindowUtils
@@ -81,40 +82,33 @@ class ROS2ImageNode(Node):
                 self.joystick_callback,
                 10)
 
-    def rotate_image(self, angle, label):
+    def rotate_image(self, angle, label, original_pixmap_path):
 
-        # Get the original pixmap and size of the label
-        original_pixmap = label.pixmap()
-        label_size = label.size()
-
-        # Scale the original pixmap to fit the label
-        scale_factor = min(label_size.width() / original_pixmap.width(), label_size.height() / original_pixmap.height())
-        scaled_pixmap = original_pixmap.scaled(int(original_pixmap.width() * scale_factor), int(original_pixmap.height() * scale_factor), QtCore.Qt.AspectRatioMode.KeepAspectRatio)
+        original_pixmap = QtGui.QPixmap(original_pixmap_path)
 
         # Create a new pixmap for the rotated image
-        rotated_pixmap = QtGui.QPixmap(scaled_pixmap.size())
+        rotated_pixmap = QtGui.QPixmap(original_pixmap.size())
         rotated_pixmap.fill(QtGui.QColor(0, 0, 0, 0))
 
         # Create a QPainter to draw the rotated image
         painter = QtGui.QPainter(rotated_pixmap)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
 
         # Translate the painter to the center of the pixmap and rotate
-        painter.translate(rotated_pixmap.width() / 2, rotated_pixmap.height() / 2)
+        painter.translate(original_pixmap.width() / 2, original_pixmap.height() / 2)
         painter.rotate(angle * 180 / 3.14159)
-        painter.translate(-rotated_pixmap.width() / 2, -rotated_pixmap.height() / 2)
+        painter.translate(-original_pixmap.width() / 2, -original_pixmap.height() / 2)
 
         # Draw the scaled pixmap onto the rotated pixmap
-        painter.drawPixmap(0, 0, scaled_pixmap)
+        painter.drawPixmap(0, 0, original_pixmap)
         painter.end()
-    
+
         # Set the rotated pixmap to the label
         label.setPixmap(rotated_pixmap)
 
 
-
     # CALLBACK FUNCTIONS =================================================================================================
-
 
     def image_callback(self, msg):
         cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
@@ -125,6 +119,7 @@ class ROS2ImageNode(Node):
 
 
     def imu_data_callback(self, msg):
+
         angles = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
         angles = euler_from_quaternion(angles) # TF transformations
 
@@ -132,11 +127,9 @@ class ROS2ImageNode(Node):
         self.ui.pitch_value.setText(f"{angles[1]:.2f}°")
         self.ui.yaw_value.setText(f"{angles[2]:.2f}°")
 
-
         # ROTATION OF THE IMAGES
-
-        self.rotate_image(angles[0], self.ui.side_image)
-        self.rotate_image(angles[1], self.ui.top_image)
+        self.rotate_image(angles[0], self.ui.side_image, self.ui.side_image_path)
+        self.rotate_image(angles[1], self.ui.top_image, self.ui.top_image_path)
 
 
     def barometer_pressure_callback(self, msg):
@@ -208,44 +201,28 @@ class ROS2ImageNode(Node):
         current_time = self.get_clock().now()
         delta_time = current_time - self.last_message_time
         if delta_time > 1e9: # 1 second without messsages
-            self.ui.controller_status.setPixmap(QtGui.QPixmap("images/red_controller.png"))
+            self.ui.controller_status.setPixmap(QtGui.QPixmap("./images/red_controller.png"))
         else:
-            self.ui.controller_status.setPixmap(QtGui.QPixmap("images/green_controller.png"))
-
-
-# THREAD CLASS ============================================================================================================
-class ImageThread(QThread):
-    image_received = pyqtSignal(QImage)
-
-    def __init__(self, ui):
-        super().__init__()
-        self.ros2_node = ROS2ImageNode(ui)
-        self.ros2_node.signals.image_signal.connect(self.image_received.emit)
-
-    def run(self):
-        rclpy.spin(self.ros2_node)
-        rclpy.shutdown()
-
-    def stop(self):
-        self.ros2_node.destroy_node()
-
+            self.ui.controller_status.setPixmap(QtGui.QPixmap("./images/green_controller.png"))
 
 
 # MAIN FUNCTION ==========================================================================================================
+
 def main():
-	rclpy.init(args=sys.argv)
-	app = QApplication(sys.argv)
-	
-	main_window = QMainWindow()
-	ui = MainWindowUtils.Ui_MainWindow()
-	ui.setupUi(main_window)
-	
-	image_thread = ImageThread(ui)
-	image_thread.start()
-	image_thread.ros2_node.signals.image_signal.connect(ui.update_image_widget)
-	main_window.show()
-	sys.exit(app.exec())
-	
+    rclpy.init(args=sys.argv)
+    app = QApplication(sys.argv)
+
+    main_window = QMainWindow()
+    ui = MainWindowUtils.Ui_MainWindow()
+    ui.setupUi(main_window)
+    node = ROS2ImageNode(ui)
+
+    timer = QtCore.QTimer()
+    timer.timeout.connect(lambda: rclpy.spin_once(node, timeout_sec=0.1))
+    timer.start(int(1000/30)) # 30 FPS
+
+    main_window.show()
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

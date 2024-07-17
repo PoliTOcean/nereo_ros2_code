@@ -1,4 +1,5 @@
 from setuptools import find_packages, setup
+from glob import glob
 
 package_name = 'gui_pkg'
 
@@ -10,6 +11,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/images', glob('gui_pkg/images/*')),
     ],
     install_requires=[
         'setuptools',
@@ -25,6 +27,7 @@ setup(
     entry_points={
         'console_scripts': [
             'gui_node = gui_pkg.gui_node:main',
+            'imu_random_node = gui_pkg.simple_publisher_imu_node:main'
         ],
     },
 )
