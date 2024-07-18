@@ -122,8 +122,13 @@ class ArmDisarmDialog(QDialog):
     def get_armed_status(self):
         return self.rov_disarmed
 
+class ImageSignals(QtCore.QObject):
+    image_signal = QtCore.pyqtSignal(QtGui.QImage)
 
 class Ui_MainWindow(object):
+
+    def __init__(self):
+        self.image_signals = ImageSignals()
 
     def setupUi(self, MainWindow):
 
@@ -561,6 +566,16 @@ class Ui_MainWindow(object):
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
+        self.image_signals.image_signal.connect(lambda image: self.update_camera_frame(image, self.main_camera_image))
+
+
+    @QtCore.pyqtSlot(QtGui.QImage)
+    def update_camera_frame(self, qt_image, camera_frame):
+        pixmap = QPixmap.fromImage(qt_image)
+        scaled_pixmap = pixmap.scaled(camera_frame.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio)
+        camera_frame.setPixmap(scaled_pixmap)
+
+
     def open_control_panel(self):
         self.control_panel_dialog.exec()
         self.check_armed()
@@ -570,9 +585,6 @@ class Ui_MainWindow(object):
             self.armed_status.setPixmap(QtGui.QPixmap("./images/red_shield.png"))
         else:
             self.armed_status.setPixmap(QtGui.QPixmap("./images/green_shield.png"))
-
-    def update_image_widget(self, qt_image):
-        self.main_camera_image.setPixmap(QPixmap.fromImage(qt_image))
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate

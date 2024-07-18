@@ -9,7 +9,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QApplication,  QTableWidgetItem, QMainWindow
 from PyQt6.QtGui import QImage
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
-from cv_bridge import CvBridge
+from cv_bridge import CvBridge, CvBridgeError
 from tf_transformations import euler_from_quaternion
 from . import MainWindowUtils
 from sensor_msgs.msg import Image, Imu, FluidPressure, Temperature, Joy
@@ -22,13 +22,11 @@ class ROS2ImageNode(Node):
 
     def __init__(self, ui):
         super().__init__('gui_node')
-        self.signals = ROS2ImageNodeSignals()
-
         self.ui = ui
 
         self.subscription_camera1 = self.create_subscription(
                 Image,
-                '/camera1',
+                'camera1',
                 self.image_callback,
                 10)
         self.bridge = CvBridge()
@@ -111,11 +109,21 @@ class ROS2ImageNode(Node):
     # CALLBACK FUNCTIONS =================================================================================================
 
     def image_callback(self, msg):
-        cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        self.get_logger().info('Received an image')
+
+        try:
+            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='8UC3')
+
+        except CvBridgeError as e:
+            self.get_logger().error(f"CvBridgeError: {e}")
+            return
+
         height, width, channel = cv_image.shape
         bytesPerLine = 3 * width
+        self.get_logger().info("Starting to emit image")
         qt_image = QImage(cv_image.data, width, height, bytesPerLine, QImage.Format.Format_RGB888).rgbSwapped()
-        self.signals.image_signal.emit(qt_image)
+        self.ui.image_signals.image_signal.emit(qt_image)
+        self.get_logger().info("Image emitted")
 
 
     def imu_data_callback(self, msg):
