@@ -26,20 +26,20 @@ struct Vec3 {
 
 struct CovarianceMatrix{
     float64 matrix[9];
-}
+};
 
 typedef double float64;
 
 enum Status {OK, WARN, ERROR, STALE};
 
-//void calcCovMatrix(std::queue<Vec3> window, float64 *matrix);
+void calcCovMatrix(std::queue<Vec3> window, float64 *matrix);
 
 class PublisherIMU: public rclcpp::Node
 {
     private:
         rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_data_publisher_;
         rclcpp::TimerBase::SharedPtr timer_;
-        
+
         rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr imu_diagnostic_publisher_;
 
         /* Status indicators
