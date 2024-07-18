@@ -2,10 +2,11 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QDialogButtonBox, QTextEdit)
 from PyQt6.QtGui import QShortcut, QKeySequence, QPixmap
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSlot
+from ament_index_python.packages import get_package_share_directory
 
 class ControlPanelDialog(QDialog):
-    def __init__(self):
+    def __init__(self, logs):
         super().__init__()
         self.setWindowTitle("Control Panel")
         self.setGeometry(300, 300, 600, 400)
@@ -24,12 +25,7 @@ class ControlPanelDialog(QDialog):
 
         self.peripherals = ["Camera", "Barometer", "IMU", "Thrusters", "Diagnostic MicroROS"]
 
-        # Every log will contain a string  like "[INFO] description of the log"
-        self.logs = {"Camera": "",
-                     "Barometer": "",
-                     "IMU": "",
-                     "Thrusters": "",
-                     "Diagnostic MicroROS": ""}
+
 
         # Set peripherals name in the table
         for i in range(len(self.peripherals)):
@@ -37,7 +33,7 @@ class ControlPanelDialog(QDialog):
 
 
 
-        self.peripherals_table.cellDoubleClicked.connect(self.show_logs)
+        self.peripherals_table.cellDoubleClicked.connect(lambda row, column: self.show_logs(row, column, logs))
         self.peripherals_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)  # Stretch columns to fit
         layout.addWidget(self.peripherals_table)
 
@@ -65,13 +61,14 @@ class ControlPanelDialog(QDialog):
     def initiate_arm_disarm(self):
         self.arm_disarm_dialog.exec()
 
-    def show_logs(self, row, column):
+    def show_logs(self, row, column, logs):
         peripheral_name = self.peripherals_table.item(row, 0).text()
-        dialog = PeripheralDialog(peripheral_name)
+        dialog = PeripheralDialog(peripheral_name, logs)
         dialog.exec()
 
+
 class PeripheralDialog(QDialog):
-    def __init__(self, peripheral_name):
+    def __init__(self, peripheral_name, logs):
         super().__init__()
         self.setWindowTitle(f"{peripheral_name} Logs")
         self.setGeometry(300, 300, 400, 300)
@@ -79,6 +76,8 @@ class PeripheralDialog(QDialog):
 
         self.logs_text_edit = QTextEdit()
         self.logs_text_edit.setReadOnly(True)
+
+        self.update_logs(peripheral_name, logs)
 
         layout.addWidget(self.logs_text_edit)
 
@@ -89,7 +88,7 @@ class PeripheralDialog(QDialog):
         self.setLayout(layout)
 
     def update_logs(self, peripheral_name, logs):
-        self.logs_text_edit.setText("Logs for " + peripheral_name + '\n\n' + logs.join("\n"))
+        self.logs_text_edit.setText("Logs for " + peripheral_name + '\n\n' + logs[peripheral_name])
 
 class ArmDisarmDialog(QDialog):
     def __init__(self, arm_button: QPushButton):
@@ -122,8 +121,10 @@ class ArmDisarmDialog(QDialog):
     def get_armed_status(self):
         return self.rov_disarmed
 
+
 class ImageSignals(QtCore.QObject):
     image_signal = QtCore.pyqtSignal(QtGui.QImage)
+
 
 class Ui_MainWindow(object):
 
@@ -131,6 +132,13 @@ class Ui_MainWindow(object):
         self.image_signals = ImageSignals()
 
     def setupUi(self, MainWindow):
+
+        # Every log will contain a string  like "[INFO] description of the log"
+        self.logs = {"Camera": "",
+                     "Barometer": "",
+                     "IMU": "",
+                     "Thrusters": "",
+                     "Diagnostic MicroROS": ""}
 
         self.top_image_path = "./images/upPNG_white.png"
         self.side_image_path = "./images/sidePNG_white.png"
@@ -558,7 +566,7 @@ class Ui_MainWindow(object):
         self.statusbar = QtWidgets.QStatusBar(parent=MainWindow)
         self.statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self.statusbar)
-        self.control_panel_dialog = ControlPanelDialog()
+        self.control_panel_dialog = ControlPanelDialog(self.logs)
 
         # declare shortcuts
         self.getShortcuts(MainWindow)
@@ -571,9 +579,9 @@ class Ui_MainWindow(object):
 
     @QtCore.pyqtSlot(QtGui.QImage)
     def update_camera_frame(self, qt_image, camera_frame):
-        pixmap = QPixmap.fromImage(qt_image)
-        scaled_pixmap = pixmap.scaled(camera_frame.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio)
-        camera_frame.setPixmap(scaled_pixmap)
+            pixmap = QtGui.QPixmap.fromImage(qt_image)
+            scaled_pixmap = pixmap.scaled(camera_frame.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio)
+            camera_frame.setPixmap(scaled_pixmap)
 
 
     def open_control_panel(self):
@@ -585,6 +593,7 @@ class Ui_MainWindow(object):
             self.armed_status.setPixmap(QtGui.QPixmap("./images/red_shield.png"))
         else:
             self.armed_status.setPixmap(QtGui.QPixmap("./images/green_shield.png"))
+
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate

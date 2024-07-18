@@ -155,16 +155,16 @@ class ROS2ImageNode(Node):
 
         for diagnostic in diagnostic_array:
 
-            if diagnostic.level > max_error:
+            if int.from_bytes(diagnostic.level, "big") > max_error:
                 max_error = diagnostic.level
 
-            level = errors[diagnostic.level]
+            level = errors[int.from_bytes(diagnostic.level, "big")]
 
             diagnostic_string += f"[{level}] {diagnostic.name}: {diagnostic.message}\n"
 
-        self.ui.control_panel.logs[peripheralName] = diagnostic_string
-        self.ui.peripherals_table.setItem(index, 1, QTableWidgetItem(errors[max_error]))
-        self.ui.peripherals_table.item(index, 1).setBackground(self.ui.control_panel.get_color(errors[max_error]))
+        self.ui.logs[peripheralName] = diagnostic_string
+        self.ui.control_panel_dialog.peripherals_table.setItem(index, 1, QTableWidgetItem(errors[max_error]))
+        self.ui.control_panel_dialog.peripherals_table.item(index, 1).setBackground(self.ui.control_panel_dialog.get_color(errors[max_error]))
 
 
     def barometer_diagnostic_callback(self, msg):
