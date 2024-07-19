@@ -3,6 +3,7 @@ import os
 import time, cv2
 import rclpy
 from rclpy.node import Node
+from rclpy.duration import Duration
 import threading
 
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -156,7 +157,7 @@ class ROS2ImageNode(Node):
         for diagnostic in diagnostic_array:
 
             if int.from_bytes(diagnostic.level, "big") > max_error:
-                max_error = diagnostic.level
+                max_error = int.from_bytes(diagnostic.level, "big")
 
             level = errors[int.from_bytes(diagnostic.level, "big")]
 
@@ -182,33 +183,20 @@ class ROS2ImageNode(Node):
 
 
     def diagnostic_messages_callback(self, msg):
-        errors = ["OK", "WARNING", "ERROR", "STALE", "UNKNOWN"]
-        diagnostic_string = ""
-        max_error = 0
 
-        for diagnostic in msg.status:
-
-            if diagnostic.level > max_error:
-                max_error = diagnostic.level
-
-            level = errors[diagnostic.level]
-
-            diagnostic_string += f"[{level}] {diagnostic.hardware_id}: {diagnostic.message}\n"
-
-        self.ui.control_panel.logs["Thrusters"] = diagnostic_string
-        self.ui.peripherals_table.setItem(3, 1, QTableWidgetItem(errors[max_error]))
-        #self.handle_diagnostics(msg.status, "Thrusters", 3)
+        self.handle_diagnostics(msg.status, "Diagnostic MicroROS", 4)
 
 
     def joystick_callback(self, msg):
         self.last_message_time = self.get_clock().now()
-        self.timer = self.create_timer(1.0, self.check_joystick_connection)
+        self.timer = self.create_timer(0.8, self.check_joystick_connection)
 
 
     def check_joystick_connection(self):
         current_time = self.get_clock().now()
-        delta_time = current_time - self.last_message_time
-        if delta_time > 1e9: # 1 second without messsages
+        last_message_time = self.last_message_time
+        delta_time = current_time - last_message_time
+        if delta_time > Duration(seconds=1): # 1 second without messsages
             self.ui.controller_status.setPixmap(QtGui.QPixmap("./images/red_controller.png"))
         else:
             self.ui.controller_status.setPixmap(QtGui.QPixmap("./images/green_controller.png"))
