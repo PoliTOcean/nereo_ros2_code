@@ -1,4 +1,5 @@
 #include "nereo_sensors_pkg/imuPub.hpp"
+#include <type_traits>
 using namespace std::chrono_literals;
 
 int main(int argc, char const *argv[])
@@ -9,105 +10,115 @@ int main(int argc, char const *argv[])
     return 0;
 }
 
-void calcCovMatrix(std::queue<Vec3> window, float64 *matrix) {
+void GetCovarianceMatrix(std::queue<Vec3> window, CovarianceMatrix *matrix) {
+
+    if (window.empty())
+        return;
 
     std::queue<Vec3> copy = window;
 
-    Vec3 mean;
-    Vec3 sum = {0, 0, 0};
+    Vec3 mean = {0};
+    float[9] sum = {0};
 
+    // CALCULATE SUM
     while(!copy.empty()){
-        sum.x += copy.front().x;
-        sum.y += copy.front().y;
-        sum.z += copy.front().z;
+        mean.x += copy.front().x;
+        mean.y += copy.front().y;
+        mean.z += copy.front().z;
 
         copy.pop();
     }
 
-    mean.x = sum.x / MAXN;
-    mean.y = sum.y / MAXN;
-    mean.z = sum.z / MAXN;
 
+    // CALCULATE MEAN
+    mean.x = mean.x / window.size();
+    mean.y = mean.y / window.size();
+    mean.z = mean.z / window.size();
+
+
+    // CALCULATE VARIANCES
     copy = window;
 
-    sum = {0, 0, 0};
-
-    // VARIANCE
-    while (!copy.empty()){
-        sum.x += (copy.front().x - mean.x)*(copy.front().x - mean.x);
-        sum.y += (copy.front().y - mean.y)*(copy.front().y - mean.y);
-        sum.z += (copy.front().z - mean.z)*(copy.front().z - mean.z);
+    while(!copy.empty()){
+        sum[0] += (copy.front().x - mean.x)*(copy.front().x - mean.x);  // V[x]
+        sum[1] += (copy.front().x - mean.x)*(copy.front().y - mean.y);  // Cov[x,y]
+        sum[2] += (copy.front().x - mean.x)*(copy.front().z - mean.z);  // Cov[x,z]
+        sum[4] += (copy.front().y - mean.y)*(copy.front().y - mean.y);  // V[y]
+        sum[5] += (copy.front().y - mean.y)*(copy.front().z - mean.z);  // Cov[y,z]
+        sum[8] += (copy.front().z - mean.z)*(copy.front().z - mean.z);  // V[z]
 
         copy.pop();
     }
 
-    matrix[0] = sum.x / MAXN;
-    matrix[4] = sum.y / MAXN;
-    matrix[8] = sum.z / MAXN;
-
-    
-    sum = {0, 0, 0};
-
-    // COVARIANCE
-    while(!copy.empty()){
-        sum.x += (copy.front().x - mean.x)*(copy.front().y - mean.y);
-        sum.y += (copy.front().x - mean.x)*(copy.front().z - mean.z);
-        sum.z += (copy.front().y - mean.y)*(copy.front().z - mean.z);
-
-    }
-
-    matrix[1] = sum.x / MAXN; matrix[3] = sum.x / MAXN;
-    matrix[2] = sum.y / MAXN; matrix[6] = sum.y / MAXN;
-    matrix[5] = sum.z / MAXN; matrix[7] = sum.z / MAXN;
+    matrix->matrix[0] = sum[0] / window.size();
+    matrix->matrix[1] = sum[1] / window.size();
+    matrix->matrix[2] = sum[2] / window.size();
+    matrix->matrix[3] = matrix->matrix[1];
+    matrix->matrix[4] = sum[4] / window.size();
+    matrix->matrix[5] = sum[5] / window.size();
+    matrix->matrix[6] = matrix->matrix[2];
+    matrix->matrix[7] = matrix->matrix[5];
+    matrix->matrix[8] = sum[8] / window.size();
 }
+
 
 void PublisherIMU::timer_callback()
 {
+    tf2::Quaternion tf2_quat, tf2_quat_from_msg;
+
     auto imu_data_message = sensor_msgs::msg::Imu();
 
     imu_data_message.header.stamp = this->get_clock()->now();
     imu_data_message.header.frame_id = "IMU Data";
-    
+
+
+    // READ DATA FROM IMU
     WT61P_read_angular_vel();
     imu_data_message.angular_velocity.x = WT61P_get_angular_vel_x();
     imu_data_message.angular_velocity.y = WT61P_get_angular_vel_y();
     imu_data_message.angular_velocity.z = WT61P_get_angular_vel_z();
-    
+
     WT61P_read_acc();
     imu_data_message.linear_acceleration.x = WT61P_get_acc_x();
     imu_data_message.linear_acceleration.y = WT61P_get_acc_y();
     imu_data_message.linear_acceleration.z = WT61P_get_acc_z();
 
-    /// fix this part: use tf2 to convert from euler angles to quaternion
     WT61P_read_angle();
     Vec3 angles = { WT61P_get_pitch(), WT61P_get_roll(), WT61P_get_yaw() };
-    
-    imu_data_message.orientation.x = angles.x;
-    imu_data_message.orientation.y = angles.y; 
-    imu_data_message.orientation.z = angles.z;
+
+
+    // TF2 QUATERNION CONVERSION
+    tf2_quat.setRPY(angles.x * 0.0174533, angles.y * 0.0174533, angles.z * 0.0174533); // Converted to radians
+    tf2_quat.normalize();
+
+    imu_data_message.orientation = tf2::toMsg(tf2_quat);
+
+
+    // LINEAR ACCELERATION COVARIANCE
+    GetCovarianceMatrix(acceleration_window, &matrix);
+
+    for (int i = 0; i < 9; i++)
+        imu_data_message.linear_acceleration_covariance[i] = matrix.matrix[i];
+
+
+    // ANGULAR VELOCITY COVARIANCE
+    GetCovarianceMatrix(angular_velocity_window, &matrix);
+
+    for (int i = 0; i < 9; i++)
+        imu_data_message.angular_velocity_covariance[i] = matrix.matrix[i];
+
+
+    // ORIENTATION COVARIANCE
+    GetCovarianceMatrix(angles_window, &matrix);
+
+    for (int i = 0; i < 9; i++)
+        imu_data_message.orientation_covariance[i] = matrix.matrix[i];
+
 
     /*
-    // Linear acceleration covariance
-    calcCovMatrix(acceleration_window, matrix);
-
-    for (int i = 0; i < 9; i++)
-        imu_data_message.linear_acceleration_covariance[i] = matrix[i];
-
-    // Angular velocity covariance
-    calcCovMatrix(angular_velocity_window, matrix);
-
-    for (int i = 0; i < 9; i++)
-        imu_data_message.angular_velocity_covariance[i] = matrix[i];
-
-    // Orientation covariance - SBAGLIATA - CONVERSIONE IN QUATERNIONI E POI MATRICE
-    calcCovMatrix(angles_window, matrix);
-    
-    for (int i = 0; i < 9; i++)
-        imu_data_message.orientation_covariance[i] = matrix[i];
-
     // Diagnostic
     auto imu_diagnostic_message = diagnostic_msgs::msg::DiagnosticArray();
-    
+
     imu_diagnostic_message.header.stamp = this->get_clock()->now();
     imu_diagnostic_message.header.frame_id = "IMU Diagnostic";
 
@@ -157,12 +168,12 @@ void PublisherIMU::timer_callback()
     }
     diagnostic_publisher_->publish(imu_diagnostic_message);
     */
-   
+
    imu_data_publisher_->publish(imu_data_message);
 }
 
 PublisherIMU::PublisherIMU(): Node("imu_publisher")
-{            
+{
     imu_data_publisher_ = this->create_publisher<sensor_msgs::msg::Imu>("imu_data", 10);
     imu_diagnostic_publisher_ = this->create_publisher<diagnostic_msgs::msg::DiagnosticArray>("imu_diagnostic", 10);
 

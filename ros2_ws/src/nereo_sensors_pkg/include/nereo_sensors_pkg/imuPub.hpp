@@ -6,9 +6,9 @@
 #include <queue>
 #include <string>
 #include <thread>
+#include <tf2/LinearMath/Quaternion.h>
 
 #include "imu_libs/WT61P.h"
-
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
@@ -18,30 +18,28 @@
 
 char *i2c_device = "/dev/i2c-1";
 
-typedef struct {
+struct Vec3 {
     float x;
     float y;
     float z;
-} Vec3;
+};
 
-typedef struct {
-    Vec3 acc;
-    Vec3 angles;
-    Vec3 ang_vel;
-} ImuValues;
+struct CovarianceMatrix{
+    float64 matrix[9];
+};
 
 typedef double float64;
 
 enum Status {OK, WARN, ERROR, STALE};
 
-//void calcCovMatrix(std::queue<Vec3> window, float64 *matrix);
+void calcCovMatrix(std::queue<Vec3> window, float64 *matrix);
 
 class PublisherIMU: public rclcpp::Node
 {
     private:
         rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_data_publisher_;
         rclcpp::TimerBase::SharedPtr timer_;
-        
+
         rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr imu_diagnostic_publisher_;
 
         /* Status indicators
@@ -54,7 +52,8 @@ class PublisherIMU: public rclcpp::Node
         std::queue<Vec3> angular_velocity_window;
         std::queue<Vec3> angles_window;
 
-        float64 matrix[9];
+        // We will use a single covariance matrix for all the data and then copy it to the message
+        CovarianceMatrix matrix;
 
         void timer_callback();
 

@@ -13,6 +13,7 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
+find_package(tf2 REQUIRED)
 
 add_executable(imu_pub src/imuPub.cpp)
 add_executable(barometer_pub src/barPub.cpp)
@@ -64,6 +65,7 @@ target_link_libraries(imu_pub
   WT61P
   imu_i2c
   wit_c_sdk
+  tf2
 )
 
 ament_target_dependencies(imu_pub 

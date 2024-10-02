@@ -17,6 +17,7 @@
   <depend>chrono</depend>
   <depend>memory</depend>
   <depend>queue</depend>
+  <depend>tf2</depend> <!-- tf2_ros -->
   <depend>diagnostic_msgs</depend>
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
