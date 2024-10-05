@@ -17,6 +17,8 @@ from . import MainWindowUtils, PoliciesUtils
 from sensor_msgs.msg import Image, Imu, FluidPressure, Temperature, Joy
 from diagnostic_msgs.msg import DiagnosticArray
 
+
+
 class SensorProcessor(threading.Thread):
     def __init__(self, node, ui):
         super().__init__()
@@ -25,6 +27,7 @@ class SensorProcessor(threading.Thread):
         self.running = True
         self.ui = ui
 
+
     def run(self):
         while self.running:
             item = self.queue.get()
@@ -32,6 +35,7 @@ class SensorProcessor(threading.Thread):
                 break
             topic, msg = item
             self.process_sensor_data(topic, msg)
+
 
     def rotate_image(self, angle, label, original_pixmap_path):
 
@@ -58,6 +62,7 @@ class SensorProcessor(threading.Thread):
         # Set the rotated pixmap to the label
         label.setPixmap(rotated_pixmap)
 
+
     def process_sensor_data(self, topic, msg):
         if topic == 'imu_data':
             # Process IMU data
@@ -67,8 +72,10 @@ class SensorProcessor(threading.Thread):
         elif topic == 'barometer_pressure':
             self.update_barometer(msg)
 
+
     def update_barometer(self, msg):
         self.ui.dept_value.setText(f"{msg.fluid_pressure:.2f} Pa")
+
 
     def imu_data_callback(self, msg):
 
@@ -84,6 +91,7 @@ class SensorProcessor(threading.Thread):
         self.rotate_image(angles[1], self.ui.top_image, self.ui.top_image_path)
 
 
+
 class ImageProcessor(threading.Thread):
     def __init__(self, node):
         super().__init__()
@@ -91,12 +99,14 @@ class ImageProcessor(threading.Thread):
         self.queue = Queue(maxsize=10)
         self.running = True
 
+
     def run(self):
         while self.running:
             msg = self.queue.get()
             if msg is None:
                 break
             self.process_image(msg)
+
 
     def process_image(self, msg):
         try:
@@ -113,8 +123,8 @@ class ImageProcessor(threading.Thread):
         self.node.ui.image_signals.image_signal.emit(pixmap)
 
 
+
 class ROS2NodeThread(QThread):
-    ros2_spin_signal = pyqtSignal()
 
     def __init__(self, node):
         super().__init__()
@@ -127,7 +137,7 @@ class ROS2NodeThread(QThread):
 class ROS2ImageNodeSignals(QObject):
     image_signal = pyqtSignal(QPixmap)
 
-class ROS2ImageNode(Node):
+class ROS2Node(Node):
 
     def __init__(self, ui):
 
@@ -299,7 +309,7 @@ def main():
     main_window = QMainWindow()
     ui = MainWindowUtils.Ui_MainWindow()
     ui.setupUi(main_window)
-    node = ROS2ImageNode(ui)
+    node = ROS2Node(ui)
 
     ros2_thread = ROS2NodeThread(node)
     ros2_thread.start()

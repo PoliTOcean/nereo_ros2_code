@@ -1,5 +1,3 @@
-import rclpy
-from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy, QoSHistoryPolicy
 
 sensor_qos = QoSProfile(

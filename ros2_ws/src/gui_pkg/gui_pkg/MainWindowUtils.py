@@ -25,13 +25,9 @@ class ControlPanelDialog(QDialog):
 
         self.peripherals = ["Camera", "Barometer", "IMU", "Thrusters", "Diagnostic MicroROS"]
 
-
-
         # Set peripherals name in the table
         for i in range(len(self.peripherals)):
             self.peripherals_table.setItem(i, 0, QTableWidgetItem(self.peripherals[i]))
-
-
 
         self.peripherals_table.cellDoubleClicked.connect(lambda row, column: self.show_logs(row, column, logs))
         self.peripherals_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)  # Stretch columns to fit
@@ -58,13 +54,16 @@ class ControlPanelDialog(QDialog):
                 }
         return colors[status]
 
+
     def initiate_arm_disarm(self):
         self.arm_disarm_dialog.exec()
+
 
     def show_logs(self, row, column, logs):
         peripheral_name = self.peripherals_table.item(row, 0).text()
         dialog = PeripheralDialog(peripheral_name, logs)
         dialog.exec()
+
 
 
 class PeripheralDialog(QDialog):
@@ -106,6 +105,7 @@ class ArmDisarmDialog(QDialog):
 
         self.setLayout(layout)
 
+
     def arm_disarm_rov(self):
         if self.rov_disarmed:
             # ARM THE ROV
@@ -114,16 +114,20 @@ class ArmDisarmDialog(QDialog):
             # DISARM THE ROV
             self.change_status()
 
+
     def change_status(self):
         self.rov_disarmed = not self.rov_disarmed
         self.accept()
+
 
     def get_armed_status(self):
         return self.rov_disarmed
 
 
+
 class ImageSignals(QtCore.QObject):
     image_signal = QtCore.pyqtSignal(QtGui.QImage)
+
 
 
 class Ui_MainWindow(object):
