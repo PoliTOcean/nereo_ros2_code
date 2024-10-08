@@ -18,7 +18,7 @@ void GetCovarianceMatrix(std::queue<Vec3> window, CovarianceMatrix *matrix) {
     std::queue<Vec3> copy = window;
 
     Vec3 mean = {0};
-    float[9] sum = {0};
+    float sum[9] = {0};
 
     // CALCULATE SUM
     while(!copy.empty()){

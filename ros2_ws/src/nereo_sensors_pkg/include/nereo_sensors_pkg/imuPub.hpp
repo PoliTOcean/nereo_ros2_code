@@ -7,16 +7,20 @@
 #include <string>
 #include <thread>
 #include <tf2/LinearMath/Quaternion.h>
+#include "geometry_msgs/msg/quaternion.hpp"
 
 #include "imu_libs/WT61P.h"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #define MAXN 20
 #define WT61P_IIC_ADDR 0x50
 
 char *i2c_device = "/dev/i2c-1";
+
+typedef double float64;
 
 struct Vec3 {
     float x;
@@ -28,7 +32,6 @@ struct CovarianceMatrix{
     float64 matrix[9];
 };
 
-typedef double float64;
 
 enum Status {OK, WARN, ERROR, STALE};
 

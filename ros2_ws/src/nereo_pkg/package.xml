@@ -11,19 +11,10 @@
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
-  <test_depend>numpy</test_depend>
 
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
-  <depend>tk</depend>
-  <depend>customtkinter</depend>
-  <depend>Pillow</depend>
-  <depend>python3-opencv</depend>
-  <depend>cv_bridge</depend>
-  <depend>time</depend>
-  <depend>threading</depend>
 
-  <exec_depend>nereo_interfaces</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>
