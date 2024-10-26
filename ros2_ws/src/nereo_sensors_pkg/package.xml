@@ -11,14 +11,10 @@
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
   <depend>sensor_msgs</depend>
-  <depend>stdbool</depend>
-  <depend>stdint</depend>
-  <depend>string</depend>
-  <depend>chrono</depend>
-  <depend>memory</depend>
-  <depend>queue</depend>
-  <depend>tf2</depend> <!-- tf2_ros -->
+  <depend>tf2_ros</depend> <!-- tf2_ros -->
   <depend>diagnostic_msgs</depend>
+  <depend>tf2</depend>
+  <depend>geometry_msgs</depend>
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
