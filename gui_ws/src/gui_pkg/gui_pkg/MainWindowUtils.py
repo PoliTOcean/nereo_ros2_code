@@ -94,7 +94,7 @@ class ArmDisarmDialog(QDialog):
         super().__init__()
         self.setWindowTitle("Confirm")
         self.setGeometry(400, 400, 300, 150)
-        self.rov_disarmed = False
+        self.ask_service = 
         layout = QVBoxLayout()
 
         self.label = QLabel("Press 'Enter' to " + ("ARM" if self.rov_disarmed else "DISARM") + " the ROV.")
