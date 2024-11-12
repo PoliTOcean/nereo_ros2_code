@@ -19,7 +19,7 @@ class ImageReceiver(QObject):
         self.port = port
         self.payload_size = struct.calcsize("Q")
         self.max_retries = 25
-        self.retry_delay = 0.5  # 0.1 seconds (one tenth)
+        self.retry_delay = 0.5
 
     def start(self):
         self.running = True
@@ -39,14 +39,18 @@ class ImageReceiver(QObject):
                     self.client_socket.connect((self.host_ip, self.port))
                     print("Connected to server!")
                     self.connection_status.emit(True, "Connected to server")
-                    retries = 0  # Reset retry counter on successful connection
+                    retries = 0
 
                     while self.running:
-                        frame = self.receive_frame()
-                        if frame is not None:
-                            q_image = self.frame_to_qimage(frame)
-                            self.image_received.emit(q_image)
-                        #time.sleep(1/self.fps)
+                        try:
+                            frame = self.receive_frame()
+                            if frame is not None:
+                                q_image = self.frame_to_qimage(frame)
+                                self.image_received.emit(q_image)
+                        except Exception as e:
+                            print(f"Frame reception error: {e}")
+                            self.connection_status.emit(False, f"Frame error: {e}")
+                            break
 
             except socket.timeout:
                 retries += 1

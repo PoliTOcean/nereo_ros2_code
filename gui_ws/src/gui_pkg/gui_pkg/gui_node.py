@@ -63,9 +63,7 @@ class SensorProcessor(threading.Thread):
 
     def process_sensor_data(self, topic, msg):
         if topic == 'imu_data':
-            # Process IMU data
-            pass
-            # Update UI using signals
+            self.update_imu(msg)
 
         elif topic == 'barometer_pressure':
             self.update_barometer(msg)
@@ -75,7 +73,7 @@ class SensorProcessor(threading.Thread):
         self.ui.dept_value.setText(f"{msg.fluid_pressure:.2f} Pa")
 
 
-    def imu_data_callback(self, msg):
+    def update_imu(self, msg):
 
         angles = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
         angles = euler_from_quaternion(angles) # TF transformations
@@ -130,13 +128,13 @@ class ROS2Node(Node):
                 'barometer_pressure',
                 self.barometer_pressure_callback,
                 PoliciesUtils.sensor_qos)
-
+        """
         self.subscription_barometer_temperature = self.create_subscription(
                 Temperature,
                 'barometer_temperature',
                 self.barometer_temperature_callback,
                 PoliciesUtils.sensor_qos)
-
+        """
 
         self.subscription_barometer_diagnostic = self.create_subscription(
                 DiagnosticArray,
@@ -182,9 +180,6 @@ class ROS2Node(Node):
 
     # CALLBACK FUNCTIONS =================================================================================================
 
-    def image_callback(self, msg):
-        pass
-        
     def destroy_node(self):
         self.image_receiver.stop()
         self.sensor_processor.running = False
@@ -202,9 +197,10 @@ class ROS2Node(Node):
         if not self.sensor_processor.queue.full():
             self.sensor_processor.queue.put(('barometer_pressure', msg))
 
-
+    """
     def barometer_temperature_callback(self, msg):
         pass
+    """
 
     def handle_diagnostics(self, diagnostic_array, peripheralName, index):
         errors = ["OK", "WARNING", "ERROR", "STALE", "UNKNOWN"]
@@ -225,6 +221,9 @@ class ROS2Node(Node):
         self.ui.control_panel_dialog.peripherals_table.item(index, 1).setBackground(self.ui.control_panel_dialog.get_color(errors[max_error]))
 
     def update_image(self, q_image):
+        if not self.image_receiver.running:
+            return
+
         pixmap = QPixmap.fromImage(q_image)
         self.ui.main_camera_image.setPixmap(pixmap)
 
