@@ -83,8 +83,8 @@ class SensorProcessor(threading.Thread):
         self.ui.yaw_value.setText(f"{angles[2]:.2f}°")
 
         # ROTATION OF THE IMAGES
-        self.rotate_image(angles[0], self.ui.side_image, self.ui.side_image_path)
-        self.rotate_image(angles[1], self.ui.top_image, self.ui.top_image_path)
+        self.rotate_image(angles[1], self.ui.side_image, self.ui.side_image_path)
+        self.rotate_image(angles[2], self.ui.top_image, self.ui.top_image_path)
 
 
 class ROS2NodeThread(QThread):

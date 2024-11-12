@@ -15,24 +15,27 @@ class ImageReceiver(QObject):
         super().__init__()
         self.fps = fps
         self.running = False
+        self.retry_connect = True
         self.host_ip = host_ip
         self.port = port
         self.payload_size = struct.calcsize("Q")
         self.max_retries = 25
         self.retry_delay = 0.5
+        self.camera_thread = Thread(target=self.run)
 
     def start(self):
         self.running = True
-        Thread(target=self.run).start()
+        self.camera_thread.start()
 
     def stop(self):
         self.running = False
         self.connection_status.emit(False, "Client stopped")
+        self.camera_thread.join()
         print("Client stopped!")
 
     def run(self):
         retries = 0
-        while self.running and retries < self.max_retries:
+        while self.retry_connect and retries < self.max_retries:
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as self.client_socket:
                     self.client_socket.settimeout(5)  # 5 seconds timeout for connection
@@ -67,12 +70,14 @@ class ImageReceiver(QObject):
         if retries >= self.max_retries:
             print("Max retries reached. Stopping client.")
             self.connection_status.emit(False, "Max retries reached")
+            self.retry_connect = False # Stop trying to connect
+            print("Stopped trying to connect.")
 
         self.stop()
 
     def receive_frame(self):
         data = b""
-        print("Receiving frame...")
+        #print("Receiving frame...")
         while len(data) < self.payload_size:
             packet = self.client_socket.recv(4*1024)
             if not packet:
@@ -84,7 +89,7 @@ class ImageReceiver(QObject):
         while len(data) < msg_size:
             data += self.client_socket.recv(4*1024)
         frame_data = data[:msg_size]
-        print("Frame received!")
+        #print("Frame received!")
         return pickle.loads(frame_data)
 
     @staticmethod

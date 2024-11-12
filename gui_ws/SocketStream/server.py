@@ -3,87 +3,144 @@ import socket
 import pickle
 import struct
 import time
+import os
+import threading
 
-# Socket Setup
-server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-host_ip = '0.0.0.0'  # Listen on all available interfaces
-port = 9999
-socket_address = (host_ip, port)
+# Wait time for the client to connect
+TIMEOUT = 1
+MAX_TENTATIVES = 10
 
-class SocketCommunication():
-    def __init__(self, server_socket, host_ip, port):
-        self.server_socket = server_socket
+class SocketCommunication:
+    def __init__(self, host_ip, port):
+        self.host_ip = host_ip
+        self.port = port
+        self.server_socket = None
         self.client_socket = None
         self.socket_address = (host_ip, port)
         self.connection = False
-
-        self.timeout = 1.0
-        self.max_tentatives = 5
-
+        self.timeout = 5
         self.cap = None
+        self.running = False
+        self.retry = 0
+        self.reconnect_event = threading.Event()
 
     def start_socket(self):
-        self.server_socket.bind(self.socket_address)
+        
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            self.server_socket.bind(self.socket_address)
+        except socket.error as e:
+            time.sleep(1)
+            print(f"Error: {e}\n")
+            # execute bash command to free the port
+            if (self.retry < MAX_TENTATIVES):
+                print("Freeing the port...")
+                os.system(f"sudo fuser -k {self.port}/tcp")
+                self.retry += 1
+                self.start_socket()
+            else:
+                print(f"Failed to start the server. Max tentatives reached: {self.retry}")
+                self.clean_all()
+                exit(1)
         self.server_socket.listen(5)
         print(f"Listening at: {self.socket_address}")
-        
-        # Accept client connection
-        client_socket, addr = self.server_socket.accept()
-        print(f'Connection from: {addr}')
 
-        self.client_socket = client_socket
-        
-        if self.client_socket:
-            self.connection = True
+    def accept_connection(self):
+        if self.server_socket is None:
+            print("Server not started\nAttempting to restart the server\n")
+            self.start_socket()
+
+        while self.running:
+            try:
+                self.client_socket, addr = self.server_socket.accept()
+                print(f'Connection from: {addr}')
+                self.client_socket.settimeout(self.timeout)
+                self.connection = True
+                self.reconnect_event.clear()
+                return True
+            except socket.timeout:
+                pass
+        return False
 
     def start_transmitting(self):
         self.cap = cv2.VideoCapture(0)
 
-        while self.cap.isOpened():
+        if not self.cap.isOpened():
+            print("Failed to open the camera")
+            self.clean_all()
+
+        self.running = True
+
+        while self.running:
+            if not self.connection:
+                if not self.accept_connection():
+                    continue
+
             try:
                 ret, frame = self.cap.read()
                 if not ret:
-                    break
+                    raise Exception("Failed to capture frame")
 
-                # Serialize frame (encode the image)
                 data = pickle.dumps(frame)
-                # Send message length first (so the client knows how much to read)
                 message = struct.pack("Q", len(data)) + data
-
-                # Send the serialized frame over the socket
                 self.client_socket.sendall(message)
-            except:
-                if self.max_tentatives == 0:
-                    self.clean_all()
-                    break
+                #print("Frame sent")
 
-                self.max_tentatives -= 1
-                self.try_reconnect()
+                time.sleep(0.03)
+
+            except (socket.timeout, socket.error, BrokenPipeError, Exception) as e:
+                print(f"Error: {e}")
+                self.handle_disconnect()
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
-    def try_reconnect(self):
-        print("Trying to reconnect...")
-        time.sleep(self.timeout)
-        self.start_socket()
+        self.clean_all()
+
+    def handle_disconnect(self):
+        print("Connection lost. Attempting to reconnect...")
+        self.connection = False
+        if self.client_socket:
+            self.client_socket.close()
+        self.reconnect_event.set()
+
+        while not self.connection and self.running:
+            print("Trying to reconnect...")
+            self.accept_connection()
+            time.sleep(1) # To avoid too tight loops
 
     def clean_all(self):
-        self.cap.release()
-        self.client_socket.close()
-        self.server_socket.close()
+        self.running = False
+        if self.cap:
+            self.cap.release()
+        if self.client_socket:
+            self.client_socket.close()
+        if self.server_socket:
+            self.server_socket.close()
         cv2.destroyAllWindows()
 
+    def stop(self):
+        print("Stopping communication...")
+        self.running = False
+        self.reconnect_event.set()
 
 def main():
-    socket_communication = SocketCommunication(server_socket, host_ip, port)
+    host_ip = '0.0.0.0'
+    port = 9999
+    socket_communication = SocketCommunication(host_ip, port)
     socket_communication.start_socket()
-    
-    if socket_communication.connection:
-        socket_communication.start_transmitting()
 
-    socket_communication.clean_all()
+    # Start the communication in a separate thread
+    comm_thread = threading.Thread(target=socket_communication.start_transmitting)
+    comm_thread.start()
 
+    # Wait for user input to stop the communication
+    input("Press Enter to stop the communication...\n")
+    socket_communication.stop()
+
+    # Wait for the communication thread to finish
+    comm_thread.join()
 
 if __name__ == "__main__":
     main()
