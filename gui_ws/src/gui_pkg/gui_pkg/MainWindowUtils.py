@@ -5,6 +5,8 @@ from PyQt6.QtGui import QShortcut, QKeySequence, QPixmap
 from PyQt6.QtCore import Qt, pyqtSlot
 from ament_index_python.packages import get_package_share_directory
 
+from . import Services
+
 class ControlPanelDialog(QDialog):
     def __init__(self, logs):
         super().__init__()
@@ -89,15 +91,17 @@ class PeripheralDialog(QDialog):
     def update_logs(self, peripheral_name, logs):
         self.logs_text_edit.setText("Logs for " + peripheral_name + '\n\n' + logs[peripheral_name])
 
+
 class ArmDisarmDialog(QDialog):
     def __init__(self, arm_button: QPushButton):
         super().__init__()
         self.setWindowTitle("Confirm")
         self.setGeometry(400, 400, 300, 150)
         self.ask_service = layout = QVBoxLayout()
-        self.rov_disarmed = True
+        self.arm_status = 0
+        self.service_client = Services.ROVArmDisarmServiceClient()
 
-        self.label = QLabel("Press 'Enter' to " + ("ARM" if self.rov_disarmed else "DISARM") + " the ROV.")
+        self.label = QLabel("Service not available.")
         layout.addWidget(self.label)
 
         self.enter_shortcut = QShortcut(QKeySequence("Return"), self)
@@ -105,29 +109,23 @@ class ArmDisarmDialog(QDialog):
 
         self.setLayout(layout)
 
-
-    def arm_disarm_rov(self):
-        if self.rov_disarmed:
-            # ARM THE ROV
-            self.change_status()
-        else:
-            # DISARM THE ROV
-            self.change_status()
-
-
     def change_status(self):
-        self.rov_disarmed = not self.rov_disarmed
+        if self.service_client.service_available is False:
+            self.label = QLabel("Service not available.")
+            self.accept()
+            return
+        
+        self.label = QLabel("Press 'Enter' to " + ("ARM" if self.arm_status == 1 else "DISARM") + " the ROV.")
+        self.service_client.call_service(self.arm_status)
+        self.arm_status = 1 if self.arm_status == 0 else 0
         self.accept()
 
-
     def get_armed_status(self):
-        return self.rov_disarmed
-
+        return self.arm_status
 
 
 class ImageSignals(QtCore.QObject):
     image_signal = QtCore.pyqtSignal(QtGui.QImage)
-
 
 
 class Ui_MainWindow(object):
@@ -593,7 +591,7 @@ class Ui_MainWindow(object):
         self.check_armed()
 
     def check_armed(self):
-        if self.control_panel_dialog.arm_disarm_dialog.rov_disarmed == False:
+        if self.control_panel_dialog.arm_disarm_dialog.arm_status == 0:
             self.armed_status.setPixmap(QtGui.QPixmap("./images/red_shield.png"))
         else:
             self.armed_status.setPixmap(QtGui.QPixmap("./images/green_shield.png"))
@@ -618,6 +616,7 @@ class Ui_MainWindow(object):
 
 
     def getShortcuts(self, MainWindow):
+        """
         # Create a new shortcut for switching to the main camera
         self.main_camera0_shortcut = QShortcut(QKeySequence("Ctrl+1"), MainWindow)
         self.main_camera0_shortcut.activated.connect(lambda: self.switch_camera(0))
@@ -628,10 +627,11 @@ class Ui_MainWindow(object):
         self.main_camera2_shortcut = QShortcut(QKeySequence("Ctrl+3"), MainWindow)
         self.main_camera2_shortcut.activated.connect(lambda: self.switch_camera(2))
         # Shortcut for the control panel
+        """
         self.control_panel_shortcut = QShortcut(QKeySequence("Ctrl+C"), MainWindow)
         self.control_panel_shortcut.activated.connect(self.open_control_panel)
 
-
+    """
     def switch_camera(self, camera):
         if camera == 0:
             self.main_camera_image.setPixmap(QtGui.QPixmap("images/360_F_294161078_5nTGVd3p8753SFo7GyWtqRFk3YNlmrRh.jpg"))
@@ -654,3 +654,4 @@ class Ui_MainWindow(object):
             self.main_camera_label.setText("CAMERA 2")
             self.camera1_label.setText("CAMERA 1")
             self.camera2_label.setText("MAIN CAMERA")
+    """
