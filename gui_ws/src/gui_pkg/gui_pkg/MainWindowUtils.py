@@ -42,7 +42,7 @@ class ControlPanelDialog(QDialog):
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
-        self.arm_disarm_dialog = ArmDisarmDialog(self.arm_button)
+        self.arm_disarm_dialog = ArmDisarmDialog()
 
         self.setLayout(layout)
 
@@ -93,7 +93,7 @@ class PeripheralDialog(QDialog):
 
 
 class ArmDisarmDialog(QDialog):
-    def __init__(self, arm_button: QPushButton):
+    def __init__(self):
         super().__init__()
         self.setWindowTitle("Confirm")
         self.setGeometry(400, 400, 300, 150)
@@ -111,6 +111,7 @@ class ArmDisarmDialog(QDialog):
 
     def change_status(self):
         if self.service_client.service_available is False:
+            print("Service not available. SUCA")    
             self.label = QLabel("Service not available.")
             self.accept()
             return
