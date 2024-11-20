@@ -73,7 +73,7 @@ class ImageReceiver(QObject):
             self.retry_connect = False # Stop trying to connect
             print("Stopped trying to connect.")
 
-        self.stop()
+        #self.stop()
 
     def receive_frame(self):
         data = b""

@@ -110,13 +110,12 @@ class ArmDisarmDialog(QDialog):
         self.setLayout(layout)
 
     def change_status(self):
-        if self.service_client.service_available is False:
-            print("Service not available. SUCA")    
+        if self.service_client.service_available is False:    
             self.label = QLabel("Service not available.")
             self.accept()
             return
-        
-        self.label = QLabel("Press 'Enter' to " + ("ARM" if self.arm_status == 1 else "DISARM") + " the ROV.")
+       
+        self.label.setText("Press 'Enter' to " + ("ARM" if self.arm_status == 1 else "DISARM") + " the ROV.")
         self.service_client.call_service(self.arm_status)
         self.arm_status = 1 if self.arm_status == 0 else 0
         self.accept()
