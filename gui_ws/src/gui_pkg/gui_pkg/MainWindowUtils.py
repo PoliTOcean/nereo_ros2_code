@@ -98,10 +98,10 @@ class ArmDisarmDialog(QDialog):
         self.setWindowTitle("Confirm")
         self.setGeometry(400, 400, 300, 150)
         self.ask_service = layout = QVBoxLayout()
-        self.arm_status = 0
+        self.arm_status = 0 # 
         self.service_client = Services.ROVArmDisarmServiceClient()
 
-        self.label = QLabel("Service not available.")
+        self.label = QLabel(self.get_text())
         layout.addWidget(self.label)
 
         self.enter_shortcut = QShortcut(QKeySequence("Return"), self)
@@ -109,13 +109,21 @@ class ArmDisarmDialog(QDialog):
 
         self.setLayout(layout)
 
+    def get_text(self):
+        if self.arm_status == 0:
+            return "Press 'Enter' to ARM the ROV."
+        elif self.arm_status == 1:
+            return "Press 'Enter' to DISARM the ROV."
+        else:
+            return "Service not available."
+
     def change_status(self):
         if self.service_client.service_available is False:    
             self.label = QLabel("Service not available.")
             self.accept()
             return
        
-        self.label.setText("Press 'Enter' to " + ("ARM" if self.arm_status == 1 else "DISARM") + " the ROV.")
+        self.label.setText(self.get_text())
         self.service_client.call_service(self.arm_status)
         self.arm_status = 1 if self.arm_status == 0 else 0
         self.accept()

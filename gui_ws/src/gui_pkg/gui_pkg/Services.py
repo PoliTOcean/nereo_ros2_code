@@ -33,9 +33,10 @@ class ROVArmDisarmServiceClient(Node):
         future = self.cli.call_async(request)
         
         #rclpy.spin_until_future_complete(self, future)
-        sleep(1)
+        #sleep(1)
         
         if future is not None:
+            self.get_logger().warn(f"Value of future.done() = {future.done()}")
             self.get_logger().info(f'Successfully called service: arm_status={arm_status}')
         else:
             self.get_logger().error('Service call failed')
