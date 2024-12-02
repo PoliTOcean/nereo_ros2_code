@@ -88,7 +88,7 @@ echo "${GREEN}Done.${NC}"
 echo "alias rg="ranger "" >> ~/.bashrc
 
 echo "Building Nereo ROS2 packages..."
-cd $(cwd)/../ros2_ws
+cd $cwd/../ros2_ws
 colcon build
 
 echo "${RED}All set up!${NC}"
