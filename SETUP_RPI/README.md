@@ -1,63 +1,15 @@
-# Configure Main Computer: Raspberry Pi
-## Installing Ubuntu Server
-1. Flash SD card with Ubuntu Server 22.04 LTS, make sure to enable ssh (if you cannot enable it from the Pi Imager, you will have to enable it when connecting with the external keyboard).
-## Network configurations
-In order to ssh into your new ubuntu server Pi, you first have to connect using an external monitor and keyboard.
-Run:
-```bash
-cd /etc/netplan
-```
-```bash
-sudo vim 50-cloud-init.yaml
-```
-Then edit it until it looks like this:
+# Configure Main Computer: Raspberry Pi 4
+1. Flash the image on the SD card: using Raspberry PI Imager, flash the Ubuntu Server 22.04 LTS (64bit) image on the SD card, at least 32GB. User: `politocean`, Password: `politoceanPI`.
+2. After the image is flashed, boot the raspberry PI and connect to a shell, either through monitor and keyboard, or connecting it to a router with DHCP, or by configuring the access to a WiFi during the 1st step.
+3. Network configuration: you should edit the `/etc/netplan/50-cloud-init.yaml` and add this part:
 ```yaml
-network:
-  version: 2
-  renderer: networkd
-  ethernets:
-    eth0:
-      dhcp4: false
-      optional: true
-      addresses: [10.0.0.3/24]
+	ethernets:
+		renderer: networkd
+		optional: false
+		dhcp4: false
+		addresses: [10.0.0.3/24]	
 ```
-Save and run ```sudo netplan try```. If it shows no errors, press Enter to accept the configurations. Now you can ssh into your system.
-# Connect to WiFi:
-Run ```sudo vim /etc/netplan/50-cloud-init.yaml```, at the end of the file, append something like this:
-```yaml
-  wifis:
-    wlan0:
-      dhcp4: yes
-      access-points:
-        "YOUR_SSID":
-          auth:
-            method: peap
-            identity: "YOUR_USERNAME"
-            password: "YOUR_PASSWORD"
-```
-Adapt this to your needs: in case of "polito" WiFi, SSID is "polito", "Username" is your student email and "Password" is your password.
-3. run ```sudo vim /etc/wpa_supplicant/wpa_supplicant.conf```, make it look something like:
-```
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-country=US
-
-network={
-    ssid="YOUR_SSID"
-    key_mgmt=WPA-EAP
-    eap=PEAP
-    identity="YOUR_USERNAME"
-    password="YOUR_PASSWORD"
-    phase1="peaplabel=0"
-    phase2="auth=MSCHAPV2"
-}
-```
-4. run ```sudo killall wpa_supplicant```, then run
-```bash
-sudo wpa_supplicant -B -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant.conf && sudo systemctl restart systemd-networkd
-```
-5. Run ```sudo netplan apply```, then see if you are connected using: ```sudo ip a```.
-6. For every system boot, you need to repeat point 4, IDK why, I might try to find a solution in the future.
-## Clone the GitHub repository.
-1. Run ```git clone https://github.com/Z4nna/nereo_rov_code.git ~/```
-2. Execute the setup script: ```cd ~/nereo_rov_code && ./setup_rpi.sh```. This will install all the dependencies and utilities of PoliTOcean Nereo software, making the Raspberry Pi ready to run the ROV. The script is yet to be tested, so if you have any problems, please contact me.
+Then run `sudo netplan apply`. You should then be able to shh into your PI from the ethernet connection, using `ssh politocean@10.0.0.3`. (do not forget to configure the network ip on your laptop too).
+4. Connect to the internet. Connect to your wifi of choice, LAN or whatever you prefer.
+5. Run ```git clone https://github.com/PoliTOcean/nereo_ros2_code.git ~/nereo_ros2_code```
+6. Execute the setup script: ```cd ~/nereo_ros2_code/SETUP_RPI && ./setup_rpi.sh```. This will install all the dependencies and utilities of PoliTOcean Nereo software, making the Raspberry Pi ready to run the ROV. Please make sure to follow the instructions displayed on the screen. If any, they should be colored to distinguish them from normal log text.
