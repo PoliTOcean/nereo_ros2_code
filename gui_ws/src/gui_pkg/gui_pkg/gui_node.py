@@ -112,7 +112,7 @@ class ROS2Node(Node):
         
         # Address for Raspberry: host_ip = 10.0.0.3, port = 8080
         # Address for PC: host_ip = 0.0.0.0, port = 9999
-        self.image_receiver = CameraUtils.ImageReceiver(host_ip='10.0.0.3', port=8080, fps=30)
+        self.image_receiver = CameraUtils.ImageReceiver(host_ip='0.0.0.0', port=9999, fps=30)
         self.image_receiver.image_received.connect(self.update_image)
         self.image_receiver.start()
 

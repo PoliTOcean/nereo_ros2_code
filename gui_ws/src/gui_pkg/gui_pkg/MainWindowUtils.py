@@ -305,9 +305,9 @@ class Ui_MainWindow(object):
         self.control_panel.setObjectName("control_panel")
         self.control_panel_box.addWidget(self.control_panel)
         self.right_side.addLayout(self.control_panel_box)
-        self.camera1_image = QtWidgets.QLabel(parent=self.centralwidget)
 
         # Camera 1 image
+        self.camera1_image = QtWidgets.QLabel(parent=self.centralwidget)
         self.camera1_image.setMinimumSize(QtCore.QSize(200, 50))
         self.camera1_image.setMaximumSize(QtCore.QSize(600, 200))
         self.camera1_image.setStyleSheet("background-color: #212529;")
