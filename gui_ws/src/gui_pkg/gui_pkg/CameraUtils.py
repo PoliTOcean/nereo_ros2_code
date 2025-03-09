@@ -7,11 +7,17 @@ import pickle
 from PyQt6.QtGui import QImage
 from PyQt6.QtCore import pyqtSignal, QObject
 
+# Address for Raspberry: host_ip = 10.0.0.3, port = 8080
+# Address for PC: host_ip = 0.0.0.0, port = 9999
+
+HOST_IP = '0.0.0.0'
+PORT = 9999
+
 class ImageReceiver(QObject):
     image_received = pyqtSignal(QImage)
     connection_status = pyqtSignal(bool, str)
 
-    def __init__(self, host_ip='localhost', port=9999, fps=30):
+    def __init__(self, host_ip=HOST_IP, port=PORT, fps=30):
         super().__init__()
         self.fps = fps
         self.running = False

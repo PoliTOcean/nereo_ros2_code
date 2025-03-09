@@ -17,6 +17,7 @@ from . import MainWindowUtils, PoliciesUtils, CameraUtils
 from sensor_msgs.msg import Image, Imu, FluidPressure, Temperature, Joy
 from diagnostic_msgs.msg import DiagnosticArray
 
+
 class SensorProcessor(threading.Thread):
     def __init__(self, node, ui):
         super().__init__()
@@ -110,9 +111,7 @@ class ROS2Node(Node):
 
         self.data_logged = 0
         
-        # Address for Raspberry: host_ip = 10.0.0.3, port = 8080
-        # Address for PC: host_ip = 0.0.0.0, port = 9999
-        self.image_receiver = CameraUtils.ImageReceiver(host_ip='0.0.0.0', port=9999, fps=30)
+        self.image_receiver = CameraUtils.ImageReceiver(fps=30)
         self.image_receiver.image_received.connect(self.update_image)
         self.image_receiver.start()
 

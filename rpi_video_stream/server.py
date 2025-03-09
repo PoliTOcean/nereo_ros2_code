@@ -7,6 +7,8 @@ import os
 import threading
 
 # Wait time for the client to connect
+HOST_IP = '0.0.0.0'
+PORT = 9999
 TIMEOUT = 1
 MAX_TENTATIVES = 10
 
@@ -36,7 +38,7 @@ class SocketCommunication:
             # execute bash command to free the port
             if (self.retry < MAX_TENTATIVES):
                 print("Freeing the port...")
-                os.system(f"sudo fuser -k {self.port}/tcp")
+                os.system(f"sudo fuser -k {self.port}/udp")
                 self.retry += 1
                 self.start_socket()
             else:
@@ -85,7 +87,7 @@ class SocketCommunication:
                 data = pickle.dumps(frame)
                 message = struct.pack("Q", len(data)) + data
                 self.client_socket.sendall(message)
-                #print("Frame sent")
+                print("Frame sent")
 
                 time.sleep(0.03)
 
@@ -126,8 +128,8 @@ class SocketCommunication:
         self.reconnect_event.set()
 
 def main():
-    host_ip = '0.0.0.0'
-    port = 9999
+    host_ip = HOST_IP
+    port = PORT
     socket_communication = SocketCommunication(host_ip, port)
     socket_communication.start_socket()
 
