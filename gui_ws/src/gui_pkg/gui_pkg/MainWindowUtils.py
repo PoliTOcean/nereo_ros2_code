@@ -1,9 +1,9 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QDialogButtonBox, QTextEdit)
-from PyQt6.QtGui import QShortcut, QKeySequence, QPixmap
-from PyQt6.QtCore import Qt, pyqtSlot
-from ament_index_python.packages import get_package_share_directory
+from PyQt6.QtGui import QShortcut, QKeySequence #, QPixmap
+from PyQt6.QtCore import Qt #, pyqtSlot
+#from ament_index_python.packages import get_package_share_directory
 
 from . import Services
 
@@ -98,7 +98,7 @@ class ArmDisarmDialog(QDialog):
         self.setWindowTitle("Confirm")
         self.setGeometry(400, 400, 300, 150)
         self.ask_service = layout = QVBoxLayout()
-        self.arm_status = 0 # 
+        self.arm_status = False
         self.service_client = Services.ROVArmDisarmServiceClient()
 
         self.label = QLabel(self.get_text())
@@ -110,10 +110,12 @@ class ArmDisarmDialog(QDialog):
         self.setLayout(layout)
 
     def get_text(self):
-        if self.arm_status == 0:
-            return "Press 'Enter' to ARM the ROV."
-        elif self.arm_status == 1:
-            return "Press 'Enter' to DISARM the ROV."
+        self.arm_status = self.service_client.get_current_value()
+        if self.arm_status is not None:
+            if self.arm_status:
+                return "Press 'Enter' to ARM the ROV."
+            else:
+                return "Press 'Enter' to DISARM the ROV."
         else:
             return "Service not available."
 
@@ -122,10 +124,9 @@ class ArmDisarmDialog(QDialog):
             self.label = QLabel("Service not available.")
             self.accept()
             return
-       
+    
         self.label.setText(self.get_text())
-        self.service_client.call_service(self.arm_status)
-        self.arm_status = 1 if self.arm_status == 0 else 0
+        self.arm_status = self.service_client.call_service(self.arm_status)
         self.accept()
 
     def get_armed_status(self):

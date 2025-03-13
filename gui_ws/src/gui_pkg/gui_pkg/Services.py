@@ -22,13 +22,13 @@ class ROVArmDisarmServiceClient(Node):
         self.service_available = True
         print('Service available')
 
-    def call_service(self, arm_status: int):
+    def call_service(self, arm_status: bool):
         if self.service_available is False:
             self.get_logger().error('Service not available')
             return
         
         request = SetBool.Request()
-        request.data = bool(arm_status)
+        request.data = arm_status
         
         future = self.cli.call_async(request)
         
@@ -40,3 +40,22 @@ class ROVArmDisarmServiceClient(Node):
             self.get_logger().info(f'Successfully called service: arm_status={arm_status}')
         else:
             self.get_logger().error('Service call failed')
+
+    def get_current_value(self):
+        """
+        Function to get the current value of the arm status without changing it or calling the service
+        """
+        if self.service_available is False:
+            self.get_logger().error('Service not available')
+            return
+        
+        request = SetBool.Request()
+        future = self.cli.call_async(request)
+        rclpy.spin_until_future_complete(self, future)
+        if future.result() is not None:
+            self.get_logger().info(f'Current value of arm status: {future.result().data}')
+            return future.result().data
+        else:
+            self.get_logger().error('Service call failed')
+            return None
+
