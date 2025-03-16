@@ -577,6 +577,7 @@ class Ui_MainWindow(object):
         self.statusbar = QtWidgets.QStatusBar(parent=MainWindow)
         self.statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self.statusbar)
+        # TOFIX: Calling control panel stucks the GUI
         self.control_panel_dialog = ControlPanelDialog(self.logs)
 
         # declare shortcuts

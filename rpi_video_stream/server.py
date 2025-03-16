@@ -87,7 +87,6 @@ class SocketCommunication:
                 data = pickle.dumps(frame)
                 message = struct.pack("Q", len(data)) + data
                 self.client_socket.sendall(message)
-                print("Frame sent")
 
                 time.sleep(0.03)
 

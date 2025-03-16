@@ -247,8 +247,17 @@ class ROS2Node(Node):
 
 
     def joystick_callback(self, msg):
+        """
         self.last_message_time = self.get_clock().now()
         self.timer = self.create_timer(1.1, self.check_joystick_connection)
+        # Check 6th button and if pressed update Service joy_button
+        button = msg.buttons[5]
+        if button == 1:
+            self.ui.main_window.arm_disarm_dialog.service_client.call_service(True if not self.ui.main_window.arm_disarm_dialog.arm_status else False)
+            self.ui.main_window.arm_disarm_dialog.change_status()
+            self.get_logger().info("BUTTON PRESSED, ARM/DISARM CALLED")
+        """
+        pass
 
 
     def check_joystick_connection(self):

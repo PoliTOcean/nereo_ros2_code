@@ -2,12 +2,16 @@ from std_srvs.srv import SetBool
 from rclpy.node import Node
 import rclpy
 from time import sleep
+from threading import Thread
 
 
 class ROVArmDisarmServiceClient(Node):
     def __init__(self):
         self.max_try = 3
         self.service_available = False
+        self.joy_button_pressed = False # Joystick button pressed flag (set from the main program)
+        self.joy_button_thread = Thread(target=self.joystick_arm_disarm)
+        self.joy_button_thread.start()
         super().__init__('rov_arm_disarm_service_client')
         self.cli = self.create_client(SetBool, '/set_rov_arm_mode')
         while not self.cli.wait_for_service(timeout_sec=1.0) and self.max_try > 0:
@@ -23,6 +27,12 @@ class ROVArmDisarmServiceClient(Node):
         print('Service available')
 
     def call_service(self, arm_status: bool):
+        """
+        Function to call the service and arm/disarm the ROV
+
+        Args:
+            arm_status (bool): True to arm the ROV, False to disarm the ROV
+        """
         if self.service_available is False:
             self.get_logger().error('Service not available')
             return
@@ -53,9 +63,21 @@ class ROVArmDisarmServiceClient(Node):
         future = self.cli.call_async(request)
         rclpy.spin_until_future_complete(self, future)
         if future.result() is not None:
-            self.get_logger().info(f'Current value of arm status: {future.result().data}')
-            return future.result().data
+            self.get_logger().info(f'Current value of arm status: {future.result()}')
+            # return future.result().data
+            return future.result()
         else:
             self.get_logger().error('Service call failed')
             return None
 
+    def joystick_arm_disarm(self):
+        """
+        Function to arm or disarm the ROV based on the joystick button press
+        """
+        while True:
+            if self.joy_button_pressed is True:
+                self.call_service(True)
+                self.joy_button_pressed = False
+                self.get_logger().info("JOYSTICK BUTTON PRESSED (ARMING ROV)")
+            sleep(0.2)
+    
