@@ -6,6 +6,7 @@ from rclpy.duration import Duration
 import threading
 from queue import Queue
 import message_filters
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy, QoSHistoryPolicy, QoSLivelinessPolicy
 
 from PyQt6 import QtGui
 from PyQt6.QtWidgets import QApplication,  QTableWidgetItem, QMainWindow
@@ -102,18 +103,32 @@ class ROS2NodeThread(QThread):
 class ROS2Node(Node):
 
     def __init__(self, ui):
-
         self.last_frame_time = time.time()
-        self.target_fps = 30
+        self.target_fps = 15
+        self.last_message_time = None  # Initialize last_message_time
 
         super().__init__('gui_node')
         self.ui = ui
 
         self.data_logged = 0
         
-        self.image_receiver = CameraUtils.ImageReceiver(fps=30)
+        # Create QoS profile for camera with rate limiting
+        camera_qos = QoSProfile(
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            durability=QoSDurabilityPolicy.VOLATILE,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=1,
+            liveliness=QoSLivelinessPolicy.AUTOMATIC,
+            liveliness_lease_duration=Duration(seconds=1)
+        )
+        
+        self.image_receiver = CameraUtils.ImageReceiver(fps=15)  # Reduced FPS
         self.image_receiver.image_received.connect(self.update_image)
         self.image_receiver.start()
+
+        # Create joystick connection check timer
+        self.joy_timer = self.create_timer(0.5, self.check_joystick_connection)  # Check every 0.5 seconds
+        self.joy_timer.cancel()  # Start with timer cancelled
 
         self.subscription_imu_data = self.create_subscription(
                 Imu,
@@ -127,6 +142,7 @@ class ROS2Node(Node):
                 'barometer_pressure',
                 self.barometer_pressure_callback,
                 PoliciesUtils.sensor_qos)
+
         """
         self.subscription_barometer_temperature = self.create_subscription(
                 Temperature,
@@ -247,24 +263,29 @@ class ROS2Node(Node):
 
 
     def joystick_callback(self, msg):
-        """
         self.last_message_time = self.get_clock().now()
-        self.timer = self.create_timer(1.1, self.check_joystick_connection)
-        # Check 6th button and if pressed update Service joy_button
-        button = msg.buttons[5]
+        
+        # Reset the timer to start monitoring connection
+        self.joy_timer.reset()
+        
+        # Update controller status immediately
+        self.ui.controller_status.setPixmap(QtGui.QPixmap("./images/green_controller.png"))
+        
+        # Check 7th button and if pressed update Service joy_button
+        button = msg.buttons[6]
         if button == 1:
-            self.ui.main_window.arm_disarm_dialog.service_client.call_service(True if not self.ui.main_window.arm_disarm_dialog.arm_status else False)
-            self.ui.main_window.arm_disarm_dialog.change_status()
+            self.ui.control_panel_dialog.arm_disarm_dialog.change_status()
             self.get_logger().info("BUTTON PRESSED, ARM/DISARM CALLED")
-        """
-        pass
-
 
     def check_joystick_connection(self):
+        if self.last_message_time is None:
+            return
+            
         current_time = self.get_clock().now()
-        last_message_time = self.last_message_time
-        delta_time = current_time - last_message_time
-        if delta_time > Duration(seconds=1): # 1 second without messsages
+        delta_time = current_time - self.last_message_time
+
+        # Update controller status to red if no messages received
+        if delta_time > Duration(seconds=1):
             self.ui.controller_status.setPixmap(QtGui.QPixmap("./images/red_controller.png"))
         else:
             self.ui.controller_status.setPixmap(QtGui.QPixmap("./images/green_controller.png"))

@@ -113,9 +113,9 @@ class ArmDisarmDialog(QDialog):
         self.arm_status = self.service_client.get_current_value()
         if self.arm_status is not None:
             if self.arm_status:
-                return "Press 'Enter' to ARM the ROV."
-            else:
                 return "Press 'Enter' to DISARM the ROV."
+            else:
+                return "Press 'Enter' to ARM the ROV."
         else:
             return "Service not available."
 
@@ -126,8 +126,12 @@ class ArmDisarmDialog(QDialog):
             return
     
         self.label.setText(self.get_text())
-        self.arm_status = self.service_client.call_service(self.arm_status)
+        response = self.service_client.call_service(True if not self.arm_status else False)
         self.accept()
+
+        if response is not None:
+            self.arm_status = not self.arm_status
+            self.label.setText(self.get_text())
 
     def get_armed_status(self):
         return self.arm_status
@@ -601,10 +605,10 @@ class Ui_MainWindow(object):
         self.check_armed()
 
     def check_armed(self):
-        if self.control_panel_dialog.arm_disarm_dialog.arm_status == 0:
-            self.armed_status.setPixmap(QtGui.QPixmap("./images/red_shield.png"))
-        else:
+        if self.control_panel_dialog.arm_disarm_dialog.arm_status:
             self.armed_status.setPixmap(QtGui.QPixmap("./images/green_shield.png"))
+        else:
+            self.armed_status.setPixmap(QtGui.QPixmap("./images/red_shield.png"))
 
 
     def retranslateUi(self, MainWindow):

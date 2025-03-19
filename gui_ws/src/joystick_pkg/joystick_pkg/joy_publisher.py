@@ -3,10 +3,12 @@ from rclpy.node import Node
 from sensor_msgs.msg import Joy
 import os
 import struct
+from time import sleep
 
 class JoystickPublisher(Node):
     def __init__(self, joystick_path='/dev/input/js0'):
         super().__init__('joystick_publisher')
+        self.joystick_path = joystick_path
         
         try:
             self.joystick_fd = os.open(joystick_path, os.O_RDONLY | os.O_NONBLOCK)
@@ -53,6 +55,25 @@ class JoystickPublisher(Node):
             
         except Exception as e:
             self.get_logger().error(f'Joystick read error: {e}')
+            self.reconnect_joystick(
+                sleep_time=2,
+                max_tries=3)
+
+    def reconnect_joystick(self, sleep_time=2, max_tries=3):
+        """
+        Function to reconnect to joystick
+        """
+        n_tries = 0
+        while n_tries < max_tries:
+            try:
+                self.joystick_fd = os.open(self.joystick_path, os.O_RDONLY | os.O_NONBLOCK)
+                self.get_logger().info(f"Reconnected to joystick: {self.joystick_path}")
+                sleep(sleep_time)
+                return
+            except Exception as e:
+                self.get_logger().error(f'Failed to reconnect to joystick: {e}')
+                sleep(sleep_time)
+                n_tries += 1
 
 def main(args=None):
     rclpy.init(args=args)

@@ -25,6 +25,13 @@ class SocketCommunication:
         self.running = False
         self.retry = 0
         self.reconnect_event = threading.Event()
+        
+        # Video optimization settings
+        self.target_width = 640  # Reduced resolution
+        self.target_height = 480
+        self.jpeg_quality = 70  # JPEG compression quality (0-100)
+        self.frame_interval = 1.0 / 15  # 15 FPS instead of 30
+        self.last_frame_time = time.time()
 
     def start_socket(self):
         
@@ -67,12 +74,19 @@ class SocketCommunication:
 
     def start_transmitting(self):
         self.cap = cv2.VideoCapture(0)
+        
+        # Set camera properties for lower resolution
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.target_width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.target_height)
+        self.cap.set(cv2.CAP_PROP_FPS, 15)  # Set camera FPS
 
         if not self.cap.isOpened():
             print("Failed to open the camera")
             self.clean_all()
+            return
 
         self.running = True
+        frame_count = 0
 
         while self.running:
             if not self.connection:
@@ -80,15 +94,29 @@ class SocketCommunication:
                     continue
 
             try:
+                # Frame rate limiting
+                current_time = time.time()
+                elapsed = current_time - self.last_frame_time
+                if elapsed < self.frame_interval:
+                    time.sleep(self.frame_interval - elapsed)
+                    continue
+
                 ret, frame = self.cap.read()
                 if not ret:
                     raise Exception("Failed to capture frame")
 
-                data = pickle.dumps(frame)
-                message = struct.pack("Q", len(data)) + data
-                self.client_socket.sendall(message)
+                # Resize frame if needed
+                if frame.shape[1] != self.target_width or frame.shape[0] != self.target_height:
+                    frame = cv2.resize(frame, (self.target_width, self.target_height))
 
-                time.sleep(0.03)
+                # Compress frame using JPEG
+                _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality])
+                compressed_frame = buffer.tobytes()
+
+                # Send compressed frame
+                message = struct.pack("Q", len(compressed_frame)) + compressed_frame
+                self.client_socket.sendall(message)
+                self.last_frame_time = time.time()
 
             except (socket.timeout, socket.error, BrokenPipeError, Exception) as e:
                 print(f"Error: {e}")
