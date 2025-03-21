@@ -2,7 +2,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QDialogButtonBox, QTextEdit)
 from PyQt6.QtGui import QShortcut, QKeySequence #, QPixmap
-from PyQt6.QtCore import Qt #, pyqtSlot
+from PyQt6.QtCore import Qt, pyqtSignal, QObject, pyqtSlot #, pyqtSlot
 #from ament_index_python.packages import get_package_share_directory
 
 from . import Services
@@ -93,6 +93,8 @@ class PeripheralDialog(QDialog):
 
 
 class ArmDisarmDialog(QDialog):
+    status_changed = QtCore.pyqtSignal(bool)  # Signal to handle status changes
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Confirm")
@@ -106,6 +108,9 @@ class ArmDisarmDialog(QDialog):
 
         self.enter_shortcut = QShortcut(QKeySequence("Return"), self)
         self.enter_shortcut.activated.connect(self.change_status)
+        
+        # Connect the status change signal to handle UI updates in the main thread
+        self.status_changed.connect(self._handle_status_change, Qt.ConnectionType.QueuedConnection)
 
         self.setLayout(layout)
 
@@ -119,19 +124,23 @@ class ArmDisarmDialog(QDialog):
         else:
             return "Service not available."
 
+    @QtCore.pyqtSlot()
+    def _handle_status_change(self):
+        """Handle UI updates in the main thread"""
+        self.label.setText(self.get_text())
+        self.accept()
+
     def change_status(self):
         if self.service_client.service_available is False:    
-            self.label = QLabel("Service not available.")
-            self.accept()
+            self.label.setText("Service not available.")
+            self.status_changed.emit(False)
             return
     
-        self.label.setText(self.get_text())
         response = self.service_client.call_service(True if not self.arm_status else False)
-        self.accept()
 
         if response is not None:
             self.arm_status = not self.arm_status
-            self.label.setText(self.get_text())
+            self.status_changed.emit(True)
 
     def get_armed_status(self):
         return self.arm_status
@@ -140,11 +149,16 @@ class ArmDisarmDialog(QDialog):
 class ImageSignals(QtCore.QObject):
     image_signal = QtCore.pyqtSignal(QtGui.QImage)
 
+class ControllerStatusSignal(QtCore.QObject):
+    controller_status_signal = QtCore.pyqtSignal(bool)
 
-class Ui_MainWindow(object):
+
+class Ui_MainWindow(QObject):
 
     def __init__(self):
+        super().__init__()
         self.image_signals = ImageSignals()
+        self.controller_status_signal = ControllerStatusSignal()
 
     def setupUi(self, MainWindow):
 
@@ -592,6 +606,12 @@ class Ui_MainWindow(object):
 
         self.image_signals.image_signal.connect(lambda image: self.update_camera_frame(image, self.main_camera_image))
 
+    @QtCore.pyqtSlot(bool)
+    def update_controller_status(self, status: bool) -> None:
+        if status:
+            self.controller_status.setPixmap(QtGui.QPixmap("./images/green_controller.png"))
+        else:
+            self.controller_status.setPixmap(QtGui.QPixmap("./images/red_controller.png"))
 
     @QtCore.pyqtSlot(QtGui.QImage)
     def update_camera_frame(self, qt_image, camera_frame):

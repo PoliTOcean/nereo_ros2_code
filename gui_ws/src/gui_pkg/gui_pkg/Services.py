@@ -53,6 +53,7 @@ class ROVArmDisarmServiceClient(Node):
         
         if future is not None:
             self.get_logger().warn(f"Value of future.done() = {future.done()}")
+            self.get_logger().warn(f"Value of future.result() = {future.result()}")
             self.get_logger().info(f'Successfully called service: arm_status={arm_status}')
             self.arm_status = arm_status
         else:

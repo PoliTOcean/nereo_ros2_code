@@ -11,7 +11,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy, QoS
 from PyQt6 import QtGui
 from PyQt6.QtWidgets import QApplication,  QTableWidgetItem, QMainWindow
 from PyQt6.QtGui import QImage, QPixmap
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, Qt
 from cv_bridge import CvBridge, CvBridgeError
 from tf_transformations import euler_from_quaternion
 from . import MainWindowUtils, PoliciesUtils, CameraUtils
@@ -100,26 +100,25 @@ class ROS2NodeThread(QThread):
         rclpy.spin(self.node)
 
 
-class ROS2Node(Node):
+class ROS2Node(Node, QObject):
+
+    controller_status_signal = pyqtSignal(bool)  # Define as class variable
+    arm_disarm_signal = pyqtSignal()  # Signal for arm/disarm operations
 
     def __init__(self, ui):
+        Node.__init__(self, 'gui_node')
+        QObject.__init__(self)
         self.last_frame_time = time.time()
         self.target_fps = 15
         self.last_message_time = None  # Initialize last_message_time
 
-        super().__init__('gui_node')
         self.ui = ui
-
         self.data_logged = 0
         
-        # Create QoS profile for camera with rate limiting
-        camera_qos = QoSProfile(
-            reliability=QoSReliabilityPolicy.BEST_EFFORT,
-            durability=QoSDurabilityPolicy.VOLATILE,
-            history=QoSHistoryPolicy.KEEP_LAST,
-            depth=1,
-            liveliness=QoSLivelinessPolicy.AUTOMATIC,
-            liveliness_lease_duration=Duration(seconds=1)
+        # Connect arm/disarm signal
+        self.arm_disarm_signal.connect(
+            self.ui.control_panel_dialog.arm_disarm_dialog.change_status,
+            Qt.ConnectionType.QueuedConnection
         )
         
         self.image_receiver = CameraUtils.ImageReceiver(fps=15)  # Reduced FPS
@@ -268,13 +267,13 @@ class ROS2Node(Node):
         # Reset the timer to start monitoring connection
         self.joy_timer.reset()
         
-        # Update controller status immediately
-        self.ui.controller_status.setPixmap(QtGui.QPixmap("./images/green_controller.png"))
+        # Emit signal instead of directly updating UI
+        self.controller_status_signal.emit(True)
         
         # Check 7th button and if pressed update Service joy_button
         button = msg.buttons[6]
         if button == 1:
-            self.ui.control_panel_dialog.arm_disarm_dialog.change_status()
+            self.arm_disarm_signal.emit()  # Emit signal instead of direct call
             self.get_logger().info("BUTTON PRESSED, ARM/DISARM CALLED")
 
     def check_joystick_connection(self):
@@ -284,12 +283,10 @@ class ROS2Node(Node):
         current_time = self.get_clock().now()
         delta_time = current_time - self.last_message_time
 
-        # Update controller status to red if no messages received
         if delta_time > Duration(seconds=1):
-            self.ui.controller_status.setPixmap(QtGui.QPixmap("./images/red_controller.png"))
+            self.controller_status_signal.emit(False)
         else:
-            self.ui.controller_status.setPixmap(QtGui.QPixmap("./images/green_controller.png"))
-
+            self.controller_status_signal.emit(True)
 
 # MAIN FUNCTION ==========================================================================================================
 
@@ -300,15 +297,23 @@ def main():
     main_window = QMainWindow()
     ui = MainWindowUtils.Ui_MainWindow()
     ui.setupUi(main_window)
+    
+    # Create the ROS2 node
     node = ROS2Node(ui)
-
+    
+    # Move the node to a separate thread
     ros2_thread = ROS2NodeThread(node)
+    
+    # Connect signals using Qt.QueuedConnection to ensure thread safety
+    node.moveToThread(ros2_thread)
+    node.controller_status_signal.connect(ui.update_controller_status, Qt.ConnectionType.QueuedConnection)
+    
     ros2_thread.start()
-
     main_window.show()
 
     exit_code = app.exec()
 
+    # Cleanup
     node.image_receiver.stop()
     node.destroy_node()
     rclpy.shutdown()
