@@ -3,10 +3,10 @@ from rclpy.node import Node
 import rclpy
 from time import sleep
 from threading import Thread
-
+from rclpy.task import Future
 
 class ROVArmDisarmServiceClient(Node):
-    def __init__(self):
+    def __init__(self) -> None:
         self.max_try = 3
         self.service_available = False
         self.joy_button_pressed = False # Joystick button pressed flag (set from the main program)
@@ -19,7 +19,7 @@ class ROVArmDisarmServiceClient(Node):
         self.cli = self.create_client(SetBool, '/set_rov_arm_mode')
         self.handle_reconnection()
 
-    def handle_reconnection(self):
+    def handle_reconnection(self) -> None:
         """
         Function that tries connecting for self.max_try and then stops.
         """
@@ -35,7 +35,7 @@ class ROVArmDisarmServiceClient(Node):
         self.service_available = True
         self.get_logger().info("Service available")
 
-    def call_service(self, arm_status: bool):
+    def call_service(self, arm_status: bool) -> Future:
         """
         Function to call the service and arm/disarm the ROV
 
@@ -61,13 +61,13 @@ class ROVArmDisarmServiceClient(Node):
 
         return future
 
-    def get_current_value(self):
+    def get_current_value(self) -> bool:
         """
         Function to get the current value of the arm status without changing it or calling the service
         """
         return self.arm_status
 
-    def joystick_arm_disarm(self):
+    def joystick_arm_disarm(self) -> None:
         """
         Function to arm or disarm the ROV based on the joystick button press
         """
@@ -78,7 +78,7 @@ class ROVArmDisarmServiceClient(Node):
                 self.get_logger().info("JOYSTICK BUTTON PRESSED (ARMING ROV)")
             sleep(0.2)
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """
         Function to properly clean up resources and stop the thread
         """
@@ -87,7 +87,7 @@ class ROVArmDisarmServiceClient(Node):
             self.joy_button_thread.join(timeout=1.0)  # Wait up to 1 second for thread to finish
         self.get_logger().info("ROVArmDisarmServiceClient cleaned up")
 
-    def destroy_node(self):
+    def destroy_node(self) -> None:
         """
         Override the destroy_node method to ensure proper cleanup
         """

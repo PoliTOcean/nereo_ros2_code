@@ -16,10 +16,13 @@ HOST_IP = '0.0.0.0'
 PORT = 9999
 
 class ImageReceiver(QObject):
+    """
+    Class to receive the image from the server and send it to the GUI.
+    """
     image_received = pyqtSignal(QImage)
     connection_status = pyqtSignal(bool, str)
 
-    def __init__(self, host_ip=HOST_IP, port=PORT, fps=15):
+    def __init__(self, host_ip: str = HOST_IP, port: int = PORT, fps: int = 15) -> None:
         super().__init__()
         self.fps = fps
         self.running = False
@@ -46,12 +49,18 @@ class ImageReceiver(QObject):
         self.camera_thread.daemon = True
         self.gui_thread.daemon = True
 
-    def start(self):
+    def start(self) -> None:
+        """
+        Function to start the camera thread and the GUI thread.
+        """
         self.running = True
         self.camera_thread.start()
         self.gui_thread.start()
 
-    def stop(self):
+    def stop(self) -> None:
+        """
+        Function to stop the camera thread and the GUI thread.
+        """
         self.running = False
         self.connection_status.emit(False, "Client stopped")
         
@@ -67,7 +76,7 @@ class ImageReceiver(QObject):
         self.gui_thread.join(timeout=2.0)
         print("Client stopped!")
 
-    def update_gui(self):
+    def update_gui(self) -> None:
         """
         Separate thread for updating the GUI with camera frames
         """
@@ -93,7 +102,10 @@ class ImageReceiver(QObject):
             except:
                 continue
 
-    def run(self):
+    def run(self) -> None:
+        """
+        Function to run the camera thread and put the frame in the queue.
+        """
         retries = 0
         while self.retry_connect and retries < self.max_retries:
             try:
@@ -157,7 +169,10 @@ class ImageReceiver(QObject):
 
         self.stop()  # Ensure proper cleanup when done
 
-    def receive_frame(self):
+    def receive_frame(self) -> np.ndarray | None: #TODO: Check the correct type
+        """
+        Function to receive the frame from the server.
+        """
         try:
             data = b""
             while len(data) < self.payload_size:
@@ -182,7 +197,10 @@ class ImageReceiver(QObject):
             return None
 
     @staticmethod
-    def frame_to_qimage(frame):
+    def frame_to_qimage(frame: np.ndarray) -> QImage | None: #TODO: Check the correct type
+        """
+        Function to convert the frame to a QImage.
+        """
         try:
             if frame is None:
                 return None
