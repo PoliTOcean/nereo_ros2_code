@@ -1,6 +1,6 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QPushButton,
-                             QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QDialogButtonBox, QTextEdit)
+                            QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QDialogButtonBox, QTextEdit)
 from PyQt6.QtGui import QShortcut, QKeySequence
 from PyQt6.QtCore import Qt, QObject
 

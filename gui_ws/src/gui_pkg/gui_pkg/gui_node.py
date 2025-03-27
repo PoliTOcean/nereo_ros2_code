@@ -14,6 +14,7 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal, Qt
 from tf_transformations import euler_from_quaternion
 
 from . import MainWindowUtils, PoliciesUtils, CameraUtils
+from .Services import ROVArmDisarmServiceClient
 
 from sensor_msgs.msg import Imu, FluidPressure, Joy, Temperature
 from diagnostic_msgs.msg import DiagnosticArray
@@ -75,13 +76,14 @@ class SensorProcessor(threading.Thread):
 
 
     def update_barometer(self, msg: FluidPressure) -> None:
-        self.ui.dept_value.setText(f"{msg.fluid_pressure:.2f} Pa")
+        depth = (msg.fluid_pressure - 101325) / 9806.65
+        self.ui.dept_value.setText(f"{depth:.2f} m")
 
 
     def update_imu(self, msg: Imu) -> None:
 
         angles = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
-        angles = euler_from_quaternion(angles) # TF transformations
+        angles = euler_from_quaternion(angles)
 
         self.ui.roll_value.setText(f"{angles[0]:.2f}°")
         self.ui.pitch_value.setText(f"{angles[1]:.2f}°")
@@ -121,6 +123,9 @@ class ROS2Node(Node, QObject):
 
         self.ui = ui
         self.data_logged = 0
+        
+        # Initialize the arm/disarm service client
+        self.arm_disarm_client = ROVArmDisarmServiceClient()
         
         # Connect arm/disarm signal
         self.arm_disarm_signal.connect(
@@ -214,7 +219,6 @@ class ROS2Node(Node, QObject):
             self.sensor_processor.queue.put(('imu_data', msg))
 
     def barometer_pressure_callback(self, msg: FluidPressure) -> None:
-
         if not self.sensor_processor.queue.full():
             self.sensor_processor.queue.put(('barometer_pressure', msg))
 
@@ -249,7 +253,9 @@ class ROS2Node(Node, QObject):
         if not self.image_receiver.running:
             return
 
+        # Convert QImage to QPixmap
         pixmap = QPixmap.fromImage(q_image)
+
         self.ui.main_camera_image.setPixmap(pixmap)
 
 

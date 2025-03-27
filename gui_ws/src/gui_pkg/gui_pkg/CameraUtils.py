@@ -12,8 +12,13 @@ import numpy as np
 # Address for Raspberry: host_ip = 10.0.0.3, port = 8080
 # Address for PC: host_ip = 0.0.0.0, port = 9999
 
+HOST_IP = '10.0.0.3'
+PORT = 8080
+
+"""
 HOST_IP = '0.0.0.0'
 PORT = 9999
+"""
 
 class ImageReceiver(QObject):
     """

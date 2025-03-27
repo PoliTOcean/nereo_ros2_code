@@ -9,6 +9,7 @@ import threading
 # Wait time for the client to connect
 HOST_IP = '0.0.0.0'
 PORT = 9999
+
 TIMEOUT = 1
 MAX_TENTATIVES = 10
 

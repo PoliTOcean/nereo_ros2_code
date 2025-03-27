@@ -18,6 +18,10 @@ class ROVArmDisarmServiceClient(Node):
         super().__init__('rov_arm_disarm_service_client')
         self.cli = self.create_client(SetBool, '/set_rov_arm_mode')
         self.handle_reconnection()
+        
+        # Set initial state to false
+        if self.service_available:
+            self.call_service(False)
 
     def handle_reconnection(self) -> None:
         """
