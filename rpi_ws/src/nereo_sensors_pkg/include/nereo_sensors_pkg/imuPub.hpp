@@ -9,11 +9,12 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include "geometry_msgs/msg/quaternion.hpp"
 
-#include "imu_libs/WT61P.h"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+
+#include "qos_profiles.hpp"
 
 #define MAXN 20
 #define WT61P_IIC_ADDR 0x50

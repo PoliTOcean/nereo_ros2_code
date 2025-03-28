@@ -15,6 +15,7 @@ unit_tests/imu_unit_test/imu_test
 unit_tests/imu_unit_test/libimu_i2c.a
 unit_tests/imu_unit_test/libwit_c_sdk.a
 unit_tests/imu_unit_test/libWT61P.a
+gui_ws/src/gui_pkg/gui_pkg/Prova_server.py
 
 unit_tests/barometer_unit_test/CMakeFiles
 unit_tests/barometer_unit_test/barometer 

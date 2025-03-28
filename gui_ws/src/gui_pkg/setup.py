@@ -27,7 +27,8 @@ setup(
     entry_points={
         'console_scripts': [
             'gui_node = gui_pkg.gui_node:main',
-            'imu_random_node = gui_pkg.simple_publisher_imu_node:main'
+            'imu_random_node = gui_pkg.simple_publisher_imu_node:main',
+            'prova_server = gui_pkg.Prova_server:main',
         ],
     },
 )

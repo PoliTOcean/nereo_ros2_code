@@ -174,8 +174,8 @@ void PublisherIMU::timer_callback()
 
 PublisherIMU::PublisherIMU(): Node("imu_publisher")
 {
-    imu_data_publisher_ = this->create_publisher<sensor_msgs::msg::Imu>("imu_data", 10);
-    imu_diagnostic_publisher_ = this->create_publisher<diagnostic_msgs::msg::DiagnosticArray>("imu_diagnostic", 10);
+    imu_data_publisher_ = this->create_publisher<sensor_msgs::msg::Imu>("imu_data", getSensorQoS());
+    imu_diagnostic_publisher_ = this->create_publisher<diagnostic_msgs::msg::DiagnosticArray>("imu_diagnostic", getReliableQoS());
 
     timer_ = this->create_wall_timer(200ms, std::bind(&PublisherIMU::timer_callback, this));
 

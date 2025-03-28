@@ -1,5 +1,5 @@
 import sys
-import time, cv2
+import time
 import rclpy
 from rclpy.node import Node
 from rclpy.duration import Duration
@@ -8,17 +8,20 @@ from queue import Queue
 import message_filters
 
 from PyQt6 import QtGui
-from PyQt6.QtWidgets import QApplication,  QTableWidgetItem, QMainWindow
-from PyQt6.QtGui import QImage, QPixmap
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
-from cv_bridge import CvBridge, CvBridgeError
+from PyQt6.QtWidgets import QApplication,  QTableWidgetItem, QMainWindow, QLabel
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, Qt
 from tf_transformations import euler_from_quaternion
+
 from . import MainWindowUtils, PoliciesUtils, CameraUtils
-from sensor_msgs.msg import Image, Imu, FluidPressure, Temperature, Joy
+from .Services import ROVArmDisarmServiceClient
+
+from sensor_msgs.msg import Imu, FluidPressure, Joy, Temperature
 from diagnostic_msgs.msg import DiagnosticArray
 
+
 class SensorProcessor(threading.Thread):
-    def __init__(self, node, ui):
+    def __init__(self, node, ui) -> None:
         super().__init__()
         self.node = node
         self.queue = Queue(maxsize=100)
@@ -26,7 +29,7 @@ class SensorProcessor(threading.Thread):
         self.ui = ui
 
 
-    def run(self):
+    def run(self) -> None:
         while self.running:
             item = self.queue.get()
             if item is None:
@@ -35,7 +38,7 @@ class SensorProcessor(threading.Thread):
             self.process_sensor_data(topic, msg)
 
 
-    def rotate_image(self, angle, label, original_pixmap_path):
+    def rotate_image(self, angle: float, label: QLabel, original_pixmap_path: str) -> None:
 
         original_pixmap = QtGui.QPixmap(original_pixmap_path)
 
@@ -61,62 +64,82 @@ class SensorProcessor(threading.Thread):
         label.setPixmap(rotated_pixmap)
 
 
-    def process_sensor_data(self, topic, msg):
+    def process_sensor_data(self, topic: str, msg: any) -> None:
+        """
+        Function to process the sensor data based on the topic specified.
+        """
         if topic == 'imu_data':
-            # Process IMU data
-            pass
-            # Update UI using signals
+            self.update_imu(msg)
 
         elif topic == 'barometer_pressure':
             self.update_barometer(msg)
 
 
-    def update_barometer(self, msg):
-        self.ui.dept_value.setText(f"{msg.fluid_pressure:.2f} Pa")
+    def update_barometer(self, msg: FluidPressure) -> None:
+        depth = (msg.fluid_pressure - 101325) / 9806.65
+        self.ui.dept_value.setText(f"{depth:.2f} m")
 
 
-    def imu_data_callback(self, msg):
+    def update_imu(self, msg: Imu) -> None:
 
         angles = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
-        angles = euler_from_quaternion(angles) # TF transformations
+        angles = euler_from_quaternion(angles)
 
         self.ui.roll_value.setText(f"{angles[0]:.2f}°")
         self.ui.pitch_value.setText(f"{angles[1]:.2f}°")
         self.ui.yaw_value.setText(f"{angles[2]:.2f}°")
 
         # ROTATION OF THE IMAGES
-        self.rotate_image(angles[0], self.ui.side_image, self.ui.side_image_path)
-        self.rotate_image(angles[1], self.ui.top_image, self.ui.top_image_path)
+        self.rotate_image(angles[1], self.ui.side_image, self.ui.side_image_path)
+        self.rotate_image(angles[2], self.ui.top_image, self.ui.top_image_path)
 
 
 class ROS2NodeThread(QThread):
 
-    def __init__(self, node):
+    def __init__(self, node: Node) -> None:
         super().__init__()
         self.node = node
 
-    def run(self):
+    def run(self) -> None:
         # Start spinning the node in this thread
         rclpy.spin(self.node)
 
 
-class ROS2Node(Node):
+class ROS2Node(Node, QObject):
 
-    def __init__(self, ui):
+    controller_status_signal = pyqtSignal(bool)  # Define as class variable
+    arm_disarm_signal = pyqtSignal()  # Signal for arm/disarm operations
 
+    def __init__(self, ui: MainWindowUtils.Ui_MainWindow) -> None:
+        """
+        Function to initialize the ROS2 node.
+        All the signals are defined here and the subscriptions are created.
+        """
+        Node.__init__(self, 'gui_node')
+        QObject.__init__(self)
         self.last_frame_time = time.time()
-        self.target_fps = 30
+        self.target_fps = 15
+        self.last_message_time = None  # Initialize last_message_time
 
-        super().__init__('gui_node')
         self.ui = ui
-
         self.data_logged = 0
         
-        # Address for Raspberry: host_ip = 10.0.0.3, port = 8080
-        # Address for PC: host_ip = 0.0.0.0, port = 9999
-        self.image_receiver = CameraUtils.ImageReceiver(host_ip='0.0.0.0', port=9999, fps=30)
+        # Initialize the arm/disarm service client
+        self.arm_disarm_client = ROVArmDisarmServiceClient()
+        
+        # Connect arm/disarm signal
+        self.arm_disarm_signal.connect(
+            self.ui.control_panel_dialog.arm_disarm_dialog.change_status,
+            Qt.ConnectionType.QueuedConnection
+        )
+        
+        self.image_receiver = CameraUtils.ImageReceiver(fps=15)  # Reduced FPS
         self.image_receiver.image_received.connect(self.update_image)
         self.image_receiver.start()
+
+        # Create joystick connection check timer
+        self.joy_timer = self.create_timer(0.5, self.check_joystick_connection)  # Check every 0.5 seconds
+        self.joy_timer.cancel()  # Start with timer cancelled
 
         self.subscription_imu_data = self.create_subscription(
                 Imu,
@@ -131,12 +154,13 @@ class ROS2Node(Node):
                 self.barometer_pressure_callback,
                 PoliciesUtils.sensor_qos)
 
+        """
         self.subscription_barometer_temperature = self.create_subscription(
                 Temperature,
                 'barometer_temperature',
                 self.barometer_temperature_callback,
                 PoliciesUtils.sensor_qos)
-
+        """
 
         self.subscription_barometer_diagnostic = self.create_subscription(
                 DiagnosticArray,
@@ -182,31 +206,32 @@ class ROS2Node(Node):
 
     # CALLBACK FUNCTIONS =================================================================================================
 
-    def image_callback(self, msg):
-        pass
-        
-    def destroy_node(self):
+    def destroy_node(self) -> None:
         self.image_receiver.stop()
         self.sensor_processor.running = False
         self.sensor_processor.queue.put(None)
         self.sensor_processor.join()
         super().destroy_node()
 
-    def imu_data_callback(self, msg):
+    def imu_data_callback(self, msg: Imu) -> None:
 
         if not self.sensor_processor.queue.full():
             self.sensor_processor.queue.put(('imu_data', msg))
 
-    def barometer_pressure_callback(self, msg):
-
+    def barometer_pressure_callback(self, msg: FluidPressure) -> None:
         if not self.sensor_processor.queue.full():
             self.sensor_processor.queue.put(('barometer_pressure', msg))
 
-
-    def barometer_temperature_callback(self, msg):
+    """
+    def barometer_temperature_callback(self, msg: Temperature) -> None:
         pass
+    """
 
-    def handle_diagnostics(self, diagnostic_array, peripheralName, index):
+    def handle_diagnostics(self, diagnostic_array: DiagnosticArray, peripheralName: str, index: int) -> None:
+        """
+        Function to handle the diagnostics of the peripheral.
+        It will update the logs and the status of the peripheral in the UI.
+        """
         errors = ["OK", "WARNING", "ERROR", "STALE", "UNKNOWN"]
         diagnostic_string = ""
         max_error = 0
@@ -224,18 +249,21 @@ class ROS2Node(Node):
         self.ui.control_panel_dialog.peripherals_table.setItem(index, 1, QTableWidgetItem(errors[max_error]))
         self.ui.control_panel_dialog.peripherals_table.item(index, 1).setBackground(self.ui.control_panel_dialog.get_color(errors[max_error]))
 
-    def update_image(self, q_image):
+    def update_image(self, q_image: QtGui.QImage) -> None:
+        if not self.image_receiver.running:
+            return
+
+        # Convert QImage to QPixmap
         pixmap = QPixmap.fromImage(q_image)
+
         self.ui.main_camera_image.setPixmap(pixmap)
 
 
-    def barometer_diagnostic_callback(self, msg):
-
+    def barometer_diagnostic_callback(self, msg: DiagnosticArray) -> None:
         self.handle_diagnostics(msg.status, "Barometer", 1)
 
 
-    def imu_diagnostic_callback(self, msg):
-
+    def imu_diagnostic_callback(self, msg: DiagnosticArray) -> None:
         self.handle_diagnostics(msg.status, "IMU", 2)
 
 
@@ -243,44 +271,64 @@ class ROS2Node(Node):
 #        pass
 
 
-    def diagnostic_messages_callback(self, msg):
+    def diagnostic_messages_callback(self, msg: DiagnosticArray) -> None:
 
         self.handle_diagnostics(msg.status, "Diagnostic MicroROS", 4)
 
 
-    def joystick_callback(self, msg):
+    def joystick_callback(self, msg: Joy) -> None:
         self.last_message_time = self.get_clock().now()
-        self.timer = self.create_timer(1.1, self.check_joystick_connection)
+        
+        # Reset the timer to start monitoring connection
+        self.joy_timer.reset()
+        
+        # Emit signal instead of directly updating UI
+        self.controller_status_signal.emit(True)
+        
+        # Check 7th button and if pressed update Service joy_button
+        button = msg.buttons[6]
+        if button == 1:
+            self.arm_disarm_signal.emit()  # Emit signal instead of direct call
+            self.get_logger().info("BUTTON PRESSED, ARM/DISARM CALLED")
 
-
-    def check_joystick_connection(self):
+    def check_joystick_connection(self) -> None:
+        if self.last_message_time is None:
+            return
+            
         current_time = self.get_clock().now()
-        last_message_time = self.last_message_time
-        delta_time = current_time - last_message_time
-        if delta_time > Duration(seconds=1): # 1 second without messsages
-            self.ui.controller_status.setPixmap(QtGui.QPixmap("./images/red_controller.png"))
-        else:
-            self.ui.controller_status.setPixmap(QtGui.QPixmap("./images/green_controller.png"))
+        delta_time = current_time - self.last_message_time
 
+        if delta_time > Duration(seconds=1):
+            self.controller_status_signal.emit(False)
+        else:
+            self.controller_status_signal.emit(True)
 
 # MAIN FUNCTION ==========================================================================================================
 
-def main():
+def main() -> None:
     rclpy.init(args=sys.argv)
     app = QApplication(sys.argv)
 
     main_window = QMainWindow()
     ui = MainWindowUtils.Ui_MainWindow()
     ui.setupUi(main_window)
+    
+    # Create the ROS2 node
     node = ROS2Node(ui)
-
+    
+    # Move the node to a separate thread
     ros2_thread = ROS2NodeThread(node)
+    
+    # Connect signals using Qt.QueuedConnection to ensure thread safety
+    node.moveToThread(ros2_thread)
+    node.controller_status_signal.connect(ui.update_controller_status, Qt.ConnectionType.QueuedConnection)
+    
     ros2_thread.start()
-
     main_window.show()
 
     exit_code = app.exec()
 
+    # Cleanup
     node.image_receiver.stop()
     node.destroy_node()
     rclpy.shutdown()

@@ -1,4 +1,7 @@
 #include "nereo_sensors_pkg/barPub.hpp"
+
+#include "qos_profiles.hpp"
+
 using namespace std::chrono_literals;
 
 // BAROMETER DATA VARIABLES
@@ -75,9 +78,9 @@ void PublisherBAR::timer_callback()
 
 PublisherBAR::PublisherBAR(): Node("bar_publisher")
 {
-    temperature_publisher_ = this->create_publisher<sensor_msgs::msg::Temperature>("barometer_temperature", 10);
-    pressure_publisher_ = this->create_publisher<sensor_msgs::msg::FluidPressure>("barometer_pressure", 10);
-    diagnostic_publisher_ = this->create_publisher<diagnostic_msgs::msg::DiagnosticArray>("barometer_diagnostic", 10);
+    temperature_publisher_ = this->create_publisher<sensor_msgs::msg::Temperature>("barometer_temperature", getSensorQoS());
+    pressure_publisher_ = this->create_publisher<sensor_msgs::msg::FluidPressure>("barometer_pressure", getSensorQoS());
+    diagnostic_publisher_ = this->create_publisher<diagnostic_msgs::msg::DiagnosticArray>("barometer_diagnostic", getReliableQoS());
     RCLCPP_INFO(this->get_logger(), "Publishers created");
     
     timer_ = this->create_wall_timer(300ms, std::bind(&PublisherBAR::timer_callback, this));

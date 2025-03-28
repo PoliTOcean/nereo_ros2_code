@@ -1,12 +1,13 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QPushButton,
-                             QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QDialogButtonBox, QTextEdit)
-from PyQt6.QtGui import QShortcut, QKeySequence, QPixmap
-from PyQt6.QtCore import Qt, pyqtSlot
-from ament_index_python.packages import get_package_share_directory
+                            QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QDialogButtonBox, QTextEdit)
+from PyQt6.QtGui import QShortcut, QKeySequence
+from PyQt6.QtCore import Qt, QObject
+
+from . import Services
 
 class ControlPanelDialog(QDialog):
-    def __init__(self, logs):
+    def __init__(self, logs: dict[str, str]) -> None:
         super().__init__()
         self.setWindowTitle("Control Panel")
         self.setGeometry(300, 300, 600, 400)
@@ -40,12 +41,15 @@ class ControlPanelDialog(QDialog):
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
-        self.arm_disarm_dialog = ArmDisarmDialog(self.arm_button)
+        self.arm_disarm_dialog = ArmDisarmDialog()
 
         self.setLayout(layout)
 
 
-    def get_color(self, status):
+    def get_color(self, status: str) -> Qt.GlobalColor:
+        """
+        Function to get the color of the status by the status string.
+        """
         colors = {
                 "OK": Qt.GlobalColor.green,
                 "WARN": Qt.GlobalColor.yellow,
@@ -55,11 +59,14 @@ class ControlPanelDialog(QDialog):
         return colors[status]
 
 
-    def initiate_arm_disarm(self):
+    def initiate_arm_disarm(self) -> None:
         self.arm_disarm_dialog.exec()
 
 
-    def show_logs(self, row, column, logs):
+    def show_logs(self, row: int, column: int, logs: dict[str, str]) -> None:
+        """
+        Function to show the logs of the peripheral by the row and column of the table.
+        """
         peripheral_name = self.peripherals_table.item(row, 0).text()
         dialog = PeripheralDialog(peripheral_name, logs)
         dialog.exec()
@@ -67,7 +74,7 @@ class ControlPanelDialog(QDialog):
 
 
 class PeripheralDialog(QDialog):
-    def __init__(self, peripheral_name, logs):
+    def __init__(self, peripheral_name: str, logs: dict[str, str]) -> None:
         super().__init__()
         self.setWindowTitle(f"{peripheral_name} Logs")
         self.setGeometry(300, 300, 400, 300)
@@ -86,63 +93,93 @@ class PeripheralDialog(QDialog):
 
         self.setLayout(layout)
 
-    def update_logs(self, peripheral_name, logs):
+    def update_logs(self, peripheral_name: str, logs: dict[str, str]) -> None:
         self.logs_text_edit.setText("Logs for " + peripheral_name + '\n\n' + logs[peripheral_name])
 
+
 class ArmDisarmDialog(QDialog):
-    def __init__(self, arm_button: QPushButton):
+    status_changed = QtCore.pyqtSignal(bool)  # Signal to handle status changes
+
+    def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Confirm")
         self.setGeometry(400, 400, 300, 150)
-        self.rov_disarmed = False
-        layout = QVBoxLayout()
+        self.ask_service = layout = QVBoxLayout()
+        self.arm_status = False
+        self.service_client = Services.ROVArmDisarmServiceClient()
 
-        self.label = QLabel("Press 'Enter' to " + ("ARM" if self.rov_disarmed else "DISARM") + " the ROV.")
+        self.label = QLabel(self.get_text())
         layout.addWidget(self.label)
 
         self.enter_shortcut = QShortcut(QKeySequence("Return"), self)
         self.enter_shortcut.activated.connect(self.change_status)
+        
+        # Connect the status change signal to handle UI updates in the main thread
+        self.status_changed.connect(self._handle_status_change, Qt.ConnectionType.QueuedConnection)
 
         self.setLayout(layout)
 
-
-    def arm_disarm_rov(self):
-        if self.rov_disarmed:
-            # ARM THE ROV
-            self.change_status()
+    def get_text(self) -> str:
+        self.arm_status = self.service_client.get_current_value()
+        if self.arm_status is not None:
+            if self.arm_status:
+                return "Press 'Enter' to DISARM the ROV."
+            else:
+                return "Press 'Enter' to ARM the ROV."
         else:
-            # DISARM THE ROV
-            self.change_status()
+            return "Service not available."
 
-
-    def change_status(self):
-        self.rov_disarmed = not self.rov_disarmed
+    @QtCore.pyqtSlot()
+    def _handle_status_change(self) -> None:
+        """
+        Handle UI updates in the main thread
+        """
+        self.label.setText(self.get_text())
         self.accept()
 
+    def change_status(self) -> None:
+        """
+        Function to change the status of the ROV calling the std_srvs/SetBool service.
+        """
+        if self.service_client.service_available is False:    
+            self.label.setText("Service not available.")
+            self.status_changed.emit(False)
+            return
+    
+        response = self.service_client.call_service(True if not self.arm_status else False)
 
-    def get_armed_status(self):
-        return self.rov_disarmed
+        if response is not None:
+            self.arm_status = not self.arm_status
+            self.status_changed.emit(True)
 
+    def get_armed_status(self) -> bool:
+        return self.arm_status
 
 
 class ImageSignals(QtCore.QObject):
     image_signal = QtCore.pyqtSignal(QtGui.QImage)
 
+class ControllerStatusSignal(QtCore.QObject):
+    controller_status_signal = QtCore.pyqtSignal(bool)
 
 
-class Ui_MainWindow(object):
+class Ui_MainWindow(QObject):
 
-    def __init__(self):
+    def __init__(self) -> None:
+        super().__init__()
         self.image_signals = ImageSignals()
+        self.controller_status_signal = ControllerStatusSignal()
 
-    def setupUi(self, MainWindow):
+    def setupUi(self, MainWindow: QtWidgets.QMainWindow) -> None:
+        """
+        Function to setup the UI of the main window.
+        """
 
-        # Every log will contain a string  like "[INFO] description of the log"
         self.logs = {"Camera": "",
-                     "Barometer": "",
-                     "IMU": "",
-                     "Thrusters": "",
-                     "Diagnostic MicroROS": ""}
+                    "Barometer": "",
+                    "IMU": "",
+                    "Thrusters": "",
+                    "Diagnostic MicroROS": ""}
 
         self.top_image_path = "./images/upPNG_white.png"
         self.side_image_path = "./images/sidePNG_white.png"
@@ -299,9 +336,9 @@ class Ui_MainWindow(object):
         self.control_panel.setObjectName("control_panel")
         self.control_panel_box.addWidget(self.control_panel)
         self.right_side.addLayout(self.control_panel_box)
-        self.camera1_image = QtWidgets.QLabel(parent=self.centralwidget)
 
         # Camera 1 image
+        self.camera1_image = QtWidgets.QLabel(parent=self.centralwidget)
         self.camera1_image.setMinimumSize(QtCore.QSize(200, 50))
         self.camera1_image.setMaximumSize(QtCore.QSize(600, 200))
         self.camera1_image.setStyleSheet("background-color: #212529;")
@@ -570,6 +607,7 @@ class Ui_MainWindow(object):
         self.statusbar = QtWidgets.QStatusBar(parent=MainWindow)
         self.statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self.statusbar)
+        # TOFIX: Calling control panel stucks the GUI
         self.control_panel_dialog = ControlPanelDialog(self.logs)
 
         # declare shortcuts
@@ -580,26 +618,32 @@ class Ui_MainWindow(object):
 
         self.image_signals.image_signal.connect(lambda image: self.update_camera_frame(image, self.main_camera_image))
 
+    @QtCore.pyqtSlot(bool)
+    def update_controller_status(self, status: bool) -> None:
+        if status:
+            self.controller_status.setPixmap(QtGui.QPixmap("./images/green_controller.png"))
+        else:
+            self.controller_status.setPixmap(QtGui.QPixmap("./images/red_controller.png"))
 
     @QtCore.pyqtSlot(QtGui.QImage)
-    def update_camera_frame(self, qt_image, camera_frame):
+    def update_camera_frame(self, qt_image: QtGui.QImage, camera_frame: QtWidgets.QLabel) -> None:
             pixmap = QtGui.QPixmap.fromImage(qt_image)
             scaled_pixmap = pixmap.scaled(camera_frame.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio)
             camera_frame.setPixmap(scaled_pixmap)
 
 
-    def open_control_panel(self):
+    def open_control_panel(self) -> None:
         self.control_panel_dialog.exec()
         self.check_armed()
 
-    def check_armed(self):
-        if self.control_panel_dialog.arm_disarm_dialog.rov_disarmed == False:
-            self.armed_status.setPixmap(QtGui.QPixmap("./images/red_shield.png"))
-        else:
+    def check_armed(self) -> None:
+        if self.control_panel_dialog.arm_disarm_dialog.arm_status:
             self.armed_status.setPixmap(QtGui.QPixmap("./images/green_shield.png"))
+        else:
+            self.armed_status.setPixmap(QtGui.QPixmap("./images/red_shield.png"))
 
 
-    def retranslateUi(self, MainWindow):
+    def retranslateUi(self, MainWindow: QtWidgets.QMainWindow) -> None:
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
         self.politocean_label.setText(_translate("MainWindow", "PoliTOcean"))
@@ -617,7 +661,7 @@ class Ui_MainWindow(object):
         self.dept_value.setText(_translate("MainWindow", "23 m"))
 
 
-    def getShortcuts(self, MainWindow):
+    def getShortcuts(self, MainWindow: QtWidgets.QMainWindow) -> None:
         # Create a new shortcut for switching to the main camera
         self.main_camera0_shortcut = QShortcut(QKeySequence("Ctrl+1"), MainWindow)
         self.main_camera0_shortcut.activated.connect(lambda: self.switch_camera(0))
@@ -631,8 +675,8 @@ class Ui_MainWindow(object):
         self.control_panel_shortcut = QShortcut(QKeySequence("Ctrl+C"), MainWindow)
         self.control_panel_shortcut.activated.connect(self.open_control_panel)
 
-
-    def switch_camera(self, camera):
+    """
+    def switch_camera(self, camera: int) -> None:
         if camera == 0:
             self.main_camera_image.setPixmap(QtGui.QPixmap("images/360_F_294161078_5nTGVd3p8753SFo7GyWtqRFk3YNlmrRh.jpg"))
             self.camera1_image.setPixmap(QtGui.QPixmap("images/prev1.jpg"))
@@ -654,3 +698,4 @@ class Ui_MainWindow(object):
             self.main_camera_label.setText("CAMERA 2")
             self.camera1_label.setText("CAMERA 1")
             self.camera2_label.setText("MAIN CAMERA")
+    """
