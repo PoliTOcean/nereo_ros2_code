@@ -14,7 +14,8 @@
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
-#include "qos_profiles.hpp"
+#include "nereo_sensors_pkg/qos_profiles.hpp"
+#include "nereo_sensors_pkg/imuPub.hpp"
 
 #define MAXN 20
 #define WT61P_IIC_ADDR 0x50

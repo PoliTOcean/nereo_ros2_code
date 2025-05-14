@@ -12,6 +12,7 @@
 #include "sensor_msgs/msg/fluid_pressure.hpp"
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
 
+#include "nereo_sensors_pkg/qos_profiles.hpp"
 #include "nereo_sensors_pkg/barometer_libs/driver_ms5837.h"
 #include "nereo_sensors_pkg/barometer_libs/driver_ms5837_basic.h"
 #include "nereo_sensors_pkg/barometer_libs/driver_ms5837_interface.h"

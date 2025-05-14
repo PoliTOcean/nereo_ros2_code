@@ -1,7 +1,4 @@
 #include "nereo_sensors_pkg/barPub.hpp"
-
-#include "qos_profiles.hpp"
-
 using namespace std::chrono_literals;
 
 // BAROMETER DATA VARIABLES
