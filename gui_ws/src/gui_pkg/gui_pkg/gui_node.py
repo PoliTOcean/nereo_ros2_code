@@ -17,6 +17,7 @@ from . import MainWindowUtils, PoliciesUtils, CameraUtils
 from .Services import ROVArmDisarmServiceClient
 
 from sensor_msgs.msg import Imu, FluidPressure, Joy, Temperature
+from nereo_interfaces.msg import CommandVelocity
 from diagnostic_msgs.msg import DiagnosticArray
 
 
@@ -188,7 +189,7 @@ class ROS2Node(Node, QObject):
 
         self.subscription_joystick = self.create_subscription(
                 Joy,
-                'joy',
+                'nereo_cmd_vel',
                 self.joystick_callback,
                 PoliciesUtils.sensor_qos)
 

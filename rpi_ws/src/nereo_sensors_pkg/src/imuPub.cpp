@@ -169,7 +169,7 @@ void PublisherIMU::timer_callback()
     diagnostic_publisher_->publish(imu_diagnostic_message);
     */
 
-   imu_data_publisher_->publish(imu_data_message);
+    imu_data_publisher_->publish(imu_data_message);
 }
 
 PublisherIMU::PublisherIMU(): Node("imu_publisher")
