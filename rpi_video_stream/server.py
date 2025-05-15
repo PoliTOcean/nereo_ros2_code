@@ -74,7 +74,13 @@ class SocketCommunication:
         return False
 
     def start_transmitting(self):
-        self.cap = cv2.VideoCapture(0)
+        for i in range(5):
+            self.cap = cv2.VideoCapture(i, cv2.CAP_V4L2)
+            print(f"Trying opening Camera {i}")
+
+            if self.cap.isOpened():
+                print("Success!")
+                break
         
         # Set camera properties for lower resolution
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.target_width)

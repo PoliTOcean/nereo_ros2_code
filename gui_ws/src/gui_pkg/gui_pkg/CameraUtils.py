@@ -12,13 +12,22 @@ import numpy as np
 # Address for Raspberry: host_ip = 10.0.0.3, port = 8080
 # Address for PC: host_ip = 0.0.0.0, port = 9999
 
+"""
 HOST_IP = '10.0.0.3'
 PORT = 8080
-
 """
+
 HOST_IP = '0.0.0.0'
 PORT = 9999
-"""
+
+def recvall(sock: socket.socket, length: int) -> bytes | None:
+    data = b''
+    while len(data) < length:
+        packet = sock.recv(min(length - len(data), 4096))
+        if not packet:
+            return None
+        data += packet
+    return data
 
 class ImageReceiver(QObject):
     """
@@ -179,22 +188,26 @@ class ImageReceiver(QObject):
         Function to receive the frame from the server.
         """
         try:
-            data = b""
-            while len(data) < self.payload_size:
-                packet = self.client_socket.recv(4*1024)
-                if not packet:
-                    return None
-                data += packet
-            packed_msg_size = data[:self.payload_size]
-            data = data[self.payload_size:]
+            packed_msg_size = recvall(self.client_socket, self.payload_size)
+            if not packed_msg_size:
+                print("Failed to receive frame size")
+                return None
+
             msg_size = struct.unpack("Q", packed_msg_size)[0]
-            while len(data) < msg_size:
-                data += self.client_socket.recv(4*1024)
-            frame_data = data[:msg_size]
-            
+
+            frame_data = recvall(self.client_socket, msg_size)
+            if frame_data is None:
+                print("Failed to receive complete frame data")
+                return None
+
             # Decode JPEG compressed frame
             nparr = np.frombuffer(frame_data, np.uint8)
             frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if frame is None:
+                print("Warning: Failed to decode JPEG frame")
+                return None
+
             return frame
             
         except Exception as e:
