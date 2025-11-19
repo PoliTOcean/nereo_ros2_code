@@ -8,8 +8,8 @@ from PyQt6.QtGui import QImage
 from PyQt6.QtCore import pyqtSignal, QObject
 import numpy as np
 
-HOST_IP = '127.0.0.1'
-PORT = 9999
+HOST_IP = '10.0.0.3'
+PORT = 8080
 
 def recvall(sock: socket.socket, length: int) -> bytes | None:
     data = b''
@@ -142,7 +142,7 @@ class ImageReceiver(QObject):
                 return None
 
             # BIG-endian unpack
-            msg_size = struct.unpack(">Q", packed_size)[0]
+            msg_size = struct.unpack("Q", packed_size)[0]
             frame_data = recvall(sock, msg_size)
             if frame_data is None:
                 return None
