@@ -5,14 +5,7 @@ WS_DIR="$SCRIPT_DIR/gui_ws"
 VENV_DIR="$SCRIPT_DIR/venv"
 
 echo
-cat << "EOF"
- _   _                           _             _            
-| \ | | ___ _ __ ___  ___    ___| |_ __ _ _ __| |_ ___ _ __ 
-|  \| |/ _ \ '__/ _ \/ _ \  / __| __/ _` | '__| __/ _ \ '__|
-| |\  |  __/ | |  __/ (_) | \__ \ || (_| | |  | ||  __/ |   
-|_| \_|\___|_|  \___|\___/  |___/\__\__,_|_|   \__\___|_|   
 
-EOF
 
 check_command() {
     command -v "$1" >/dev/null 2>&1
@@ -114,7 +107,7 @@ main() {
     set +e
     
     # Crea la sessione con il primo pannello (usa i valori espansi direttamente)
-    tmux new-session -d -s $SESSION -n gui bash -c "
+    tmux -f /dev/null new-session -d -s $SESSION -n gui bash -c "
         source '$VENV_DIR/bin/activate' && \
         source /opt/ros/humble/setup.bash && \
         source '$SCRIPT_DIR/nereo_interfaces/install/setup.bash' && \
