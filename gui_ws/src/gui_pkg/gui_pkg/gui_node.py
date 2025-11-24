@@ -240,15 +240,6 @@ class ROS2Node(Node, QObject):
         self.ui.control_panel_dialog.peripherals_table.setItem(index, 1, QTableWidgetItem(errors[max_error]))
         self.ui.control_panel_dialog.peripherals_table.item(index, 1).setBackground(self.ui.control_panel_dialog.get_color(errors[max_error]))
 
-    def update_image(self, q_image: QtGui.QImage) -> None:
-        if not self.image_receiver.running:
-            return
-
-        # Convert QImage to QPixmap
-        pixmap = QPixmap.fromImage(q_image)
-
-        self.ui.main_camera_image.setPixmap(pixmap)
-
     def barometer_diagnostic_callback(self, msg: DiagnosticArray) -> None:
         self.handle_diagnostics(msg.status, "Barometer", 1)
 
@@ -307,8 +298,6 @@ def main() -> None:
     
     # Connect signals using Qt.QueuedConnection to ensure thread safety
     node.moveToThread(ros2_thread)
-
-    
 
     node.controller_status_signal.connect(ui.update_controller_status, Qt.ConnectionType.QueuedConnection)
     
