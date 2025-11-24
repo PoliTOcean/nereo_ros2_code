@@ -13,3 +13,4 @@ Then run `sudo netplan apply`. You should then be able to shh into your PI from 
 4. Connect to the internet. Connect to your wifi of choice, LAN or whatever you prefer.
 5. Run ```git clone https://github.com/PoliTOcean/nereo_ros2_code.git ~/nereo_ros2_code```
 6. Execute the setup script: ```cd ~/nereo_ros2_code/SETUP_RPI && ./setup_rpi.sh```. This will install all the dependencies and utilities of PoliTOcean Nereo software, making the Raspberry Pi ready to run the ROV. Please make sure to follow the instructions displayed on the screen. If any, they should be colored to distinguish them from normal log text.
+7. To start the video camera, launch ```gst-launch-1.0 v4l2src ! videoconvert ! x264enc tune=zerolatency ! rtph264pay ! udpsink host=10.0.0.69 port=5000```
