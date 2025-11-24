@@ -1,16 +1,13 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
-from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QDialog, QDialogButtonBox, QTextEdit)
 from PyQt6.QtGui import QShortcut, QKeySequence
-from PyQt6.QtCore import Qt, QObject
+from PyQt6.QtCore import QObject
 
-from . import Services, GStreamerWidget, Dialogs
+from . import GStreamerWidget, Dialogs
 
 class ControllerStatusSignal(QtCore.QObject):
     controller_status_signal = QtCore.pyqtSignal(bool)
 
-
 class Ui_MainWindow(QObject):
-
     def __init__(self) -> None:
         super().__init__()
         self.controller_status_signal = ControllerStatusSignal()
@@ -137,7 +134,7 @@ class Ui_MainWindow(QObject):
 
         # Main camera label
         self.main_camera_label = QtWidgets.QLabel(parent=self.frame1)
-        self.main_camera_label.setMinimumSize(QtCore.QSize(0, 50))
+        self.main_camera_label.setMinimumSize(QtCore.QSize(0, 30))
         self.main_camera_label.setMaximumSize(QtCore.QSize(16777215, 80))
         font = QtGui.QFont()
         font.setFamily("FreeSans")

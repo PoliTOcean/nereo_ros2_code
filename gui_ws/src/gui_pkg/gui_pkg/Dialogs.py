@@ -1,4 +1,4 @@
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore
 from PyQt6.QtWidgets import (
     QPushButton, 
     QTableWidget, 
@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox
     )
 from PyQt6.QtGui import QShortcut, QKeySequence
-from PyQt6.QtCore import Qt, QObject
+from PyQt6.QtCore import Qt
 
 from . import Services
 
@@ -37,7 +37,6 @@ class PeripheralDialog(QDialog):
 
     def update_logs(self, peripheral_name: str, logs: dict[str, str]) -> None:
         self.logs_text_edit.setText("Logs for " + peripheral_name + '\n\n' + logs[peripheral_name])
-
 
 class ArmDisarmDialog(QDialog):
     status_changed = QtCore.pyqtSignal(bool)  # Signal to handle status changes
