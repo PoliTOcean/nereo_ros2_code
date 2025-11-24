@@ -10,8 +10,8 @@ from gi.repository import Gst
 class VideoStreamWindow(QWidget):
     update_signal = pyqtSignal(QImage)
 
-    def __init__(self, port: int):
-        super().__init__()
+    def __init__(self, parent, port: int):
+        super().__init__(parent=parent)
 
         Gst.init(None)
 
@@ -32,7 +32,7 @@ class VideoStreamWindow(QWidget):
         # Timer per limitare gli aggiornamenti della GUI, 20 fps
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.check_for_updates)
-        self.timer.start(20)
+        self.timer.start(30)
 
     def create_pipeline(self, port: str):
         """Crea e ritorna il pipeline GStreamer."""

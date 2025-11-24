@@ -93,7 +93,6 @@ class SensorProcessor(threading.Thread):
         self.rotate_image(angles[1], self.ui.side_image, self.ui.side_image_path)
         self.rotate_image(angles[2], self.ui.top_image, self.ui.top_image_path)
 
-
 class ROS2NodeThread(QThread):
 
     def __init__(self, node: Node) -> None:
@@ -104,13 +103,12 @@ class ROS2NodeThread(QThread):
         # Start spinning the node in this thread
         rclpy.spin(self.node)
 
-
 class ROS2Node(Node, QObject):
 
     controller_status_signal = pyqtSignal(bool)  # Define as class variable
     arm_disarm_signal = pyqtSignal()  # Signal for arm/disarm operations
 
-    def __init__(self, ui: MainWindowUtils.Ui_MainWindow) -> None:
+    def __init__(self) -> None:
         """
         Function to initialize the ROS2 node.
         All the signals are defined here and the subscriptions are created.
@@ -121,8 +119,11 @@ class ROS2Node(Node, QObject):
         self.target_fps = 15
         self.last_message_time = None  # Initialize last_message_time
 
-        self.ui = ui
         self.data_logged = 0
+    
+    def setup(self, ui: MainWindowUtils.Ui_MainWindow) -> None:
+
+        self.ui = ui
         
         # Initialize the arm/disarm service client
         self.arm_disarm_client = ROVArmDisarmServiceClient()
@@ -132,10 +133,6 @@ class ROS2Node(Node, QObject):
             self.ui.control_panel_dialog.arm_disarm_dialog.change_status,
             Qt.ConnectionType.QueuedConnection
         )
-        
-        self.image_receiver = CameraUtils.ImageReceiver(fps=15)  # Reduced FPS
-        self.image_receiver.image_received.connect(self.update_image)
-        self.image_receiver.start()
 
         # Create joystick connection check timer
         self.joy_timer = self.create_timer(0.5, self.check_joystick_connection)  # Check every 0.5 seconds
@@ -207,7 +204,6 @@ class ROS2Node(Node, QObject):
     # CALLBACK FUNCTIONS =================================================================================================
 
     def destroy_node(self) -> None:
-        self.image_receiver.stop()
         self.sensor_processor.running = False
         self.sensor_processor.queue.put(None)
         self.sensor_processor.join()
@@ -221,11 +217,6 @@ class ROS2Node(Node, QObject):
     def barometer_pressure_callback(self, msg: FluidPressure) -> None:
         if not self.sensor_processor.queue.full():
             self.sensor_processor.queue.put(('barometer_pressure', msg))
-
-    """
-    def barometer_temperature_callback(self, msg: Temperature) -> None:
-        pass
-    """
 
     def handle_diagnostics(self, diagnostic_array: DiagnosticArray, peripheralName: str, index: int) -> None:
         """
@@ -258,23 +249,15 @@ class ROS2Node(Node, QObject):
 
         self.ui.main_camera_image.setPixmap(pixmap)
 
-
     def barometer_diagnostic_callback(self, msg: DiagnosticArray) -> None:
         self.handle_diagnostics(msg.status, "Barometer", 1)
-
 
     def imu_diagnostic_callback(self, msg: DiagnosticArray) -> None:
         self.handle_diagnostics(msg.status, "IMU", 2)
 
-
-#    def thrust_status_callback(self, msg):
-#        pass
-
-
     def diagnostic_messages_callback(self, msg: DiagnosticArray) -> None:
 
         self.handle_diagnostics(msg.status, "Diagnostic MicroROS", 4)
-
 
     def joystick_callback(self, msg: Joy) -> None:
         self.last_message_time = self.get_clock().now()
@@ -307,20 +290,26 @@ class ROS2Node(Node, QObject):
 
 def main() -> None:
     rclpy.init(args=sys.argv)
+    
+    # Create the ROS2 node
+    node = ROS2Node()
+    
+    # Move the node to a separate thread
+    ros2_thread = ROS2NodeThread(node)
+
     app = QApplication(sys.argv)
 
     main_window = QMainWindow()
     ui = MainWindowUtils.Ui_MainWindow()
     ui.setupUi(main_window)
-    
-    # Create the ROS2 node
-    node = ROS2Node(ui)
-    
-    # Move the node to a separate thread
-    ros2_thread = ROS2NodeThread(node)
+
+    node.setup(ui=ui)
     
     # Connect signals using Qt.QueuedConnection to ensure thread safety
     node.moveToThread(ros2_thread)
+
+    
+
     node.controller_status_signal.connect(ui.update_controller_status, Qt.ConnectionType.QueuedConnection)
     
     ros2_thread.start()
@@ -329,7 +318,6 @@ def main() -> None:
     exit_code = app.exec()
 
     # Cleanup
-    node.image_receiver.stop()
     node.destroy_node()
     rclpy.shutdown()
 

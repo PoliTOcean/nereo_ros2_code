@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (QLabel, QVBoxLayout, QPushButton,
 from PyQt6.QtGui import QShortcut, QKeySequence
 from PyQt6.QtCore import Qt, QObject
 
-from . import Services
+from . import Services, GStreamerWidget
 
 class ControlPanelDialog(QDialog):
     def __init__(self, logs: dict[str, str]) -> None:
@@ -284,16 +284,9 @@ class Ui_MainWindow(QObject):
         self.camera_frame.addItem(spacerItem)
 
         # Main camera image
-        self.main_camera_image = QtWidgets.QLabel(parent=self.frame1)
-        self.main_camera_image.setMinimumSize(QtCore.QSize(600, 500))
-        self.main_camera_image.setMaximumSize(QtCore.QSize(1920, 1080))
-        self.main_camera_image.setStyleSheet("")
-        self.main_camera_image.setFrameShape(QtWidgets.QFrame.Shape.WinPanel)
-        self.main_camera_image.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
-        self.main_camera_image.setLineWidth(5)
-        self.main_camera_image.setText("")
-        self.main_camera_image.setPixmap(QtGui.QPixmap("images/360_F_294161078_5nTGVd3p8753SFo7GyWtqRFk3YNlmrRh.jpg"))
-        self.main_camera_image.setScaledContents(True)
+        self.main_camera_image =  GStreamerWidget.VideoStreamWindow(parent=self.frame1, port=5000)
+        self.main_camera_image.video_label.setPixmap(QtGui.QPixmap("images/360_F_294161078_5nTGVd3p8753SFo7GyWtqRFk3YNlmrRh.jpg"))
+        
         self.main_camera_image.setObjectName("main_camera_image")
         self.camera_frame.addWidget(self.main_camera_image)
 
