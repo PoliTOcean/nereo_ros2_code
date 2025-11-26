@@ -13,7 +13,7 @@ from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import QObject, QThread, pyqtSignal, Qt
 from tf_transformations import euler_from_quaternion
 
-from . import MainWindowUtils, PoliciesUtils, CameraUtils
+from . import MainWindowUtils, PoliciesUtils
 from .Services import ROVArmDisarmServiceClient
 
 from sensor_msgs.msg import Imu, FluidPressure, Joy, Temperature
