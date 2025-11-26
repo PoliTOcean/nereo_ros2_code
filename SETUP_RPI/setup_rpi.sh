@@ -3,8 +3,8 @@ sudo apt-get upgrade -y
 
 RED='\033[0;31m'
 NC='\033[0m' # No Color
-GREEN='\033[0;32m'        # Green
-YELLOW='\033[0;33m'       # Yellow
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
 # current working directory
 cwd=$(pwd)
 
@@ -51,7 +51,7 @@ cp ./tmux.conf ~/.config/tmux/
 
 ~/.tmux/plugins/tpm/bin/install_plugins
 ~/.tmux/plugins/tpm/bin/update_plugins all
-echo "${NC}
+echo "${NC}"
 echo "${GREEN}Done.${NC}"
 
 echo "Installing neovim..."
@@ -88,7 +88,7 @@ echo "${GREEN}Done.${NC}"
 echo "alias rg="ranger "" >> ~/.bashrc
 
 echo "Building Nereo ROS2 packages..."
-cd $cwd/../ros2_ws
+cd $cwd/../rpi_ws
 colcon build
 
 echo "${RED}All set up!${NC}"
