@@ -3,6 +3,8 @@ src/nereo_interfaces/.vscode
 src/nereo_pkg/.vscode
 .vscode
 
+venv/
+
 build
 install
 log
@@ -25,3 +27,9 @@ unit_tests/barometer_unit_test/libbarometer_driver_basic.a
 unit_tests/barometer_unit_test/libbarometer_driver.a
 unit_tests/barometer_unit_test/libbarometer_interface.a
 unit_tests/barometer_unit_test/libiic.a
+
+# Python bytecode cache directories
+__pycache__/
+**/__pycache__/
+
+nereo_interfaces/
