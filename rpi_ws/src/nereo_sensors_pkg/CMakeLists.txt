@@ -22,7 +22,7 @@ add_executable(barometer_pub src/barPub.cpp)
 
 # barometer libs
 add_library(bar_iic 
-  src/barometer_sources/iic.c 
+  src/barometer_sources/iic.c
 )
 add_library(barometer_driver 
   src/barometer_sources/driver_ms5837.c 

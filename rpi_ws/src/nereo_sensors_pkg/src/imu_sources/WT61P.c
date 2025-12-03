@@ -110,16 +110,16 @@ int WT61P_begin(char* dev, uint8_t addr){
 	return 0;
 }
 
-void WT61P_read_angle(){
-	WitReadReg(Roll, 3);
+int32_t WT61P_read_angle(){
+	return WitReadReg(Roll, 3);
 }
 
-void WT61P_read_acc(){
-	WitReadReg(AX, 3);
+int32_t WT61P_read_acc(){
+	return WitReadReg(AX, 3);
 }
 
-void WT61P_read_angular_vel(){
-	WitReadReg(GX, 3);
+int32_t WT61P_read_angular_vel(){
+	return WitReadReg(GX, 3);
 }
 
 float WT61P_get_roll(){

@@ -15,7 +15,9 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include "nereo_sensors_pkg/qos_profiles.hpp"
-#include "nereo_sensors_pkg/imuPub.hpp"
+
+#include "nereo_sensors_pkg/imu_libs/WT61P.h"
+
 
 #define MAXN 20
 #define WT61P_IIC_ADDR 0x50
@@ -47,10 +49,10 @@ class PublisherIMU: public rclcpp::Node
 
         rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr imu_diagnostic_publisher_;
 
-        /* Status indicators
+        // Status indicators
         bool imu_acc_error = false;
         bool imu_angle_error = false;
-        bool imu_ang_vel_error = false;*/
+        bool imu_ang_vel_error = false;
         Status communication_state = OK;
 
         std::queue<Vec3> acceleration_window;
