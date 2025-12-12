@@ -7,5 +7,23 @@ RPI_HOST="10.0.0.3"
 RPI_PASSWORD="raspberry" 
 RPI_SCRIPT_PATH="~/nereo_ros2_code/scripts/rpi/rpi_services.sh"
 
-# Connect via SSH and run the RPI services script
-sshpass -p "${RPI_PASSWORD}" ssh -o StrictHostKeyChecking=no "${RPI_USER}@${RPI_HOST}" "bash ${RPI_SCRIPT_PATH}"
+# Connect via SSH, run the script, and keep the connection alive
+# Disable locale forwarding and warnings
+export LC_ALL=C
+sshpass -p "${RPI_PASSWORD}" ssh -o StrictHostKeyChecking=no -o SendEnv=none -o LogLevel=ERROR -t "${RPI_USER}@${RPI_HOST}" "
+    export LC_ALL=C
+    export LANG=C
+    echo 'Connecting to RPI...'
+    if [ -f ${RPI_SCRIPT_PATH} ]; then
+        echo 'Starting services...'
+        bash ${RPI_SCRIPT_PATH}
+    else
+        echo 'Error: ${RPI_SCRIPT_PATH} not found!'
+        echo 'Current directory:' \$(pwd)
+        echo 'Available files:'
+        ls -la ~/nereo_ros2_code/scripts/rpi/ 2>/dev/null || echo 'Directory not found'
+    fi
+    echo ''
+    echo 'Press Enter to close or type commands...'
+    exec bash -l
+"

@@ -4,35 +4,34 @@
 # Configuration
 SESSION_NAME="nereo_services"
 ROS_SETUP_PATH="/opt/ros/humble/setup.bash"
-MICRO_ROS_SCRIPT="~/micro_ros_connect.sh"
-CAM_SCRIPT="~/start_cam.sh"
+WORKSPACE_SETUP="$HOME/nereo_ros2_code/rpi_ws/install/setup.bash"
+MICRO_ROS_SCRIPT="$HOME/micro_ros_connect.sh"
+CAM_SCRIPT="$HOME/start_cam.sh"
 
-# Source ROS setup
-source ${ROS_SETUP_PATH}
-# Source rpi_ws workspace setup
-source ~/rpi_ws/install/setup.bash
+echo "Starting Nereo RPI services..."
 
-# Create tmux session and windows
-tmux -f /dev/null new-session -d -s ${SESSION_NAME}
+# Check if tmux session already exists
+if tmux has-session -t ${SESSION_NAME} 2>/dev/null; then
+    echo "Session ${SESSION_NAME} already exists. Attaching..."
+    tmux attach-session -t ${SESSION_NAME}
+    exit 0
+fi
 
-# micro_ros_connect.sh
-# sudo chmod +777 /dev/ttyAMA0
-# ros2 run micro_ros_agent micro_ros_agent serial -b 115200 --dev /dev/ttyAMA0
-
-# start_cam.sh
-# gst-launch-1.0 v4l2src ! videoconvert ! x264enc tune=zerolatency ! rtph264pay ! udpsink host=10.0.0.69 port=5000
+# Create tmux session with first window
+tmux -f /dev/null new-session -d -s ${SESSION_NAME} -n "micro_ros"
 
 # Window 1: Micro ROS Connect
-tmux new-window -t ${SESSION_NAME} -n "micro_ros"
-tmux send-keys -t ${SESSION_NAME}:micro_ros "$MICRO_ROS_SCRIPT" Enter
 
 # Window 2: IMU and Barometer
 tmux new-window -t ${SESSION_NAME} -n "sensors"
-tmux send-keys -t ${SESSION_NAME}:sensors "ros2 launch nereo_sensors_pkg sensors.launch.py" Enter
+tmux send-keys -t ${SESSION_NAME}:sensors "source $WORKSPACE_SETUP && ros2 run nereo_sensors_pkg imu_pub & ros2 run nereo_sensors_pkg barometer_pub" Enter
 
 # Window 3: Camera (GStreamer)
 tmux new-window -t ${SESSION_NAME} -n "camera"
 tmux send-keys -t ${SESSION_NAME}:camera "$CAM_SCRIPT" Enter
+
+echo "Tmux session '${SESSION_NAME}' created with 3 windows: micro_ros, sensors, camera"
+echo "Attaching to session..."
 
 # Attach to session
 tmux attach-session -t ${SESSION_NAME}
