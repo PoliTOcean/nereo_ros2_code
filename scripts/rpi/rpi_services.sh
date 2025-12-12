@@ -21,7 +21,7 @@ fi
 tmux -f /dev/null new-session -d -s ${SESSION_NAME} -n "micro_ros"
 
 # Window 1: Micro ROS Connect
-
+tmux send-keys -t ${SESSION_NAME}:micro_ros "$MICRO_ROS_SCRIPT" Enter
 # Window 2: IMU and Barometer
 tmux new-window -t ${SESSION_NAME} -n "sensors"
 tmux send-keys -t ${SESSION_NAME}:sensors "source $WORKSPACE_SETUP && ros2 run nereo_sensors_pkg imu_pub & ros2 run nereo_sensors_pkg barometer_pub" Enter
