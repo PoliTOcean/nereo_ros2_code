@@ -1,0 +1,11 @@
+#!/bin/bash
+# SSH into RPI and start all services with tmux
+
+# Configuration
+RPI_USER="pi"
+RPI_HOST="10.0.0.3"  
+RPI_PASSWORD="raspberry" 
+RPI_SCRIPT_PATH="~/nereo_ros2_code/scripts/rpi/rpi_services.sh"
+
+# Connect via SSH and run the RPI services script
+sshpass -p "${RPI_PASSWORD}" ssh -o StrictHostKeyChecking=no "${RPI_USER}@${RPI_HOST}" "bash ${RPI_SCRIPT_PATH}"

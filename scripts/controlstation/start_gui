@@ -1,0 +1,41 @@
+#!/bin/bash
+# Start GUI and joystick nodes on the control station with tmux
+
+# Get the script directory and navigate to gui_ws
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+GUI_WS_DIR="$ROOT_DIR/gui_ws"
+NEREO_INTERFACES_DIR="$ROOT_DIR/nereo_interfaces"
+
+# Configuration
+SESSION_NAME="gui_session"
+ROS_SETUP="/opt/ros/humble/setup.bash"
+
+# Source ROS setup
+source "$ROS_SETUP"
+
+# Source nereo_interfaces
+if [ -d "$NEREO_INTERFACES_DIR" ]; then
+    source "$NEREO_INTERFACES_DIR/install/setup.bash" 2>/dev/null || true
+fi
+
+#source nereo_interfaces
+cd "$NEREO_INTERFACES_DIR"
+source install/setup.bash
+
+# Source gui_ws
+cd "$GUI_WS_DIR"
+source install/setup.bash
+
+# Create tmux session with first pane
+tmux new-session -d -s "$SESSION_NAME" -n "gui_joy"
+
+# First pane: GUI node (left)
+tmux send-keys -t "$SESSION_NAME:gui_joy.0" "ros2 run gui_pkg gui_node" Enter
+
+# Split vertically and create second pane: Joystick node (right)
+tmux split-window -h -t "$SESSION_NAME:gui_joy"
+tmux send-keys -t "$SESSION_NAME:gui_joy.1" "ros2 run joystick_pkg joy_to_cmdvel" Enter
+
+# Attach to session
+tmux attach-session -t "$SESSION_NAME"

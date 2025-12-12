@@ -1,17 +1,88 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONNECT_SCRIPT="$SCRIPT_DIR/connect_and_run.sh"
-GUI_SCRIPT="$SCRIPT_DIR/gui_start.sh"
-TARGET_IP="10.0.0.3"
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
 
-if [[ ! -f "$CONNECT_SCRIPT" ]]; then
-    echo "Error: $CONNECT_SCRIPT not found." >&2
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RPI_SCRIPT="$SCRIPT_DIR/scripts/rpi/start_rpi"
+GUI_SCRIPT="$SCRIPT_DIR/scripts/controlstation/start_gui"
+
+echo -e "${YELLOW}"
+cat <<'USAGE'
+ _   _                           _             _            
+| \ | | ___ _ __ ___  ___    ___| |_ __ _ _ __| |_ ___ _ __ 
+|  \| |/ _ \ '__/ _ \/ _ \  / __| __/ _` | '__| __/ _ \ '__|
+| |\  |  __/ | |  __/ (_) | \__ \ || (_| | |  | ||  __/ |   
+|_| \_|\___|_|  \___|\___/  |___/\__\__,_|_|   \__\___|_|   
+
+USAGE
+echo -e "${NC}"
+
+# Check and install required dependencies
+check_dependencies() {
+    local deps_missing=0
+    local packages_to_install=()
+
+    echo -e "${BLUE}Checking dependencies...${NC}"
+
+    # Check for tmux
+    if ! command -v tmux >/dev/null 2>&1; then
+        echo -e "  - tmux: ${RED}not found${NC}"
+        packages_to_install+=("tmux")
+        deps_missing=1
+    else
+        echo -e "  - tmux: ${GREEN}OK${NC}"
+    fi
+
+    # Check for sshpass
+    if ! command -v sshpass >/dev/null 2>&1; then
+        echo -e "  - sshpass: ${RED}not found${NC}"
+        packages_to_install+=("sshpass")
+        deps_missing=1
+    else
+        echo -e "  - sshpass: ${GREEN}OK${NC}"
+    fi
+
+    # Check for gnome-terminal or other terminal emulators
+    local terminal_found=0
+    for term in gnome-terminal konsole xfce4-terminal xterm alacritty kitty; do
+        if command -v "$term" >/dev/null 2>&1; then
+            echo -e "  - terminal emulator ($term): ${GREEN}OK${NC}"
+            terminal_found=1
+            break
+        fi
+    done
+    
+    if [[ $terminal_found -eq 0 ]]; then
+        echo -e "  - terminal emulator: ${YELLOW}not found, will use tmux fallback${NC}"
+    fi
+
+    # Install missing packages
+    if [[ $deps_missing -eq 1 ]]; then
+        echo ""
+        echo -e "${YELLOW}Installing missing dependencies: ${packages_to_install[*]}${NC}"
+        sudo apt-get update -qq
+        sudo apt-get install -y "${packages_to_install[@]}"
+        echo -e "${GREEN}Dependencies installed successfully.${NC}"
+    else
+        echo -e "${GREEN}All dependencies are installed.${NC}"
+    fi
+    echo ""
+}
+
+check_dependencies
+if [[ ! -f "$RPI_SCRIPT" ]]; then
+    echo -e "${RED}Error: $RPI_SCRIPT not found.${NC}" >&2
     exit 2
 fi
 if [[ ! -f "$GUI_SCRIPT" ]]; then
-    echo "Error: $GUI_SCRIPT not found." >&2
+    echo -e "${RED}Error: $GUI_SCRIPT not found.${NC}" >&2
     exit 2
 fi
 
@@ -22,7 +93,7 @@ ensure_executable(){
     fi
 }
 
-ensure_executable "$CONNECT_SCRIPT"
+ensure_executable "$RPI_SCRIPT"
 ensure_executable "$GUI_SCRIPT"
 
 open_terminal(){
@@ -56,25 +127,15 @@ open_terminal(){
     fi
 
     # Fallback: use tmux inside current terminal
-    echo "No supported terminal emulator found; falling back to tmux session 'autostart'"
+    echo -e "${YELLOW}No supported terminal emulator found; falling back to tmux session 'autostart'${NC}"
     tmux new-session -d -s autostart -n "$title" "bash -lc '$cmd; read -n1 -r -p \"Press any key to close...\"'"
     tmux attach -t autostart
 }
 
-echo "Opening GUI terminal (runs gui_start.sh)..."
+echo -e "${BLUE}Opening GUI terminal (runs start_gui)...${NC}"
 open_terminal "ros_gui" "$GUI_SCRIPT"
 
-echo "Opening connect terminal (will wait for $TARGET_IP to respond before running connect)..."
-CONNECT_CMD="bash -lc 'echo Waiting for $TARGET_IP; until ping -c1 -W1 $TARGET_IP >/dev/null 2>&1; do sleep 1; done; echo $TARGET_IP reachable; exec \"$CONNECT_SCRIPT\"'"
-open_terminal "connect_and_run" "$CONNECT_CMD"
+echo -e "${BLUE}Opening RPI services terminal (runs start_rpi via SSH)...${NC}"
+open_terminal "rpi_services" "$RPI_SCRIPT"
 
-echo "Done. Two terminals should be open: GUI and Connect (connect waits for ping)."
-
-cat <<'USAGE'
- _   _                           _             _            
-| \ | | ___ _ __ ___  ___    ___| |_ __ _ _ __| |_ ___ _ __ 
-|  \| |/ _ \ '__/ _ \/ _ \  / __| __/ _` | '__| __/ _ \ '__|
-| |\  |  __/ | |  __/ (_) | \__ \ || (_| | |  | ||  __/ |   
-|_| \_|\___|_|  \___|\___/  |___/\__\__,_|_|   \__\___|_|   
-
-USAGE
+echo -e "${GREEN}Done. Two terminals should be open: GUI and RPI services.${NC}"
