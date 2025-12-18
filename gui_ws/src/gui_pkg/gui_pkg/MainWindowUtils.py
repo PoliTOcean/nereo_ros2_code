@@ -163,12 +163,79 @@ class ControllerStatusSignal(QtCore.QObject):
     controller_status_signal = QtCore.pyqtSignal(bool)
 
 
+class JoystickConfigDialog(QDialog):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowTitle("Joystick Mapping")
+        self.setFixedSize(500, 500) 
+        self.setStyleSheet("background-color: #212529; color: white;")
+        
+        layout = QVBoxLayout()
+
+        # Joystick Image Slot
+        self.joy_image = QLabel()
+        pixmap = QtGui.QPixmap("images/joy.png") 
+        
+        if pixmap.isNull():
+            self.joy_image.setText("IMAGE NOT FOUND")
+        else:
+            self.joy_image.setPixmap(pixmap.scaled(300, 180, 
+                                     Qt.AspectRatioMode.KeepAspectRatio, 
+                                     Qt.TransformationMode.SmoothTransformation))
+        
+        self.joy_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.joy_image)
+
+        # Mapping Details (Text Area)
+        mapping_area = QtWidgets.QTextEdit()
+        mapping_area.setReadOnly(True)
+        
+        mapping_text = """
+        <b>MOVEMENT & STEERING:</b><br>
+        • <b>Left Stick:</b> Forward/Backward (ABS_Y) and Lateral Strafe (ABS_X)<br>
+        • <b>Right Stick:</b> Turn Left/Right (Yaw) and Pitch Up/Down (ABS_RY)<br><br>
+        
+        <b>VERTICAL CONTROL (Depth):</b><br>
+        • <b>Right Trigger (RT):</b> Thrust Down (Descend)<br>
+        • <b>Left Trigger (LT):</b> Thrust Up (Ascend)<br><br>
+        
+        <b>SYSTEM ACTIONS:</b><br>
+        • <b>A Button (BTN_SOUTH):</b> Confirm ARM / DISARM motors<br>
+        • <b>B Button (BTN_EAST):</b> Emergency Stop / Reset IMU<br>
+        • <b>D-Pad (Arrows):</b> Incremental Camera Tilt Step
+        """
+        mapping_area.setHtml(mapping_text)
+        layout.addWidget(mapping_area)
+
+        # Close Button
+        close_btn = QPushButton("CLOSE")
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2c3e50; 
+                color: white; 
+                font-weight: bold; 
+                order: 1px solid #34495e;
+                padding: 10px; 
+                border-radius: 5px;
+            }
+            QPushButton:hover { background-color: #34495e; }
+        """)
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
+
+        self.setLayout(layout)
+
+
+
 class Ui_MainWindow(QObject):
 
     def __init__(self) -> None:
         super().__init__()
         self.image_signals = ImageSignals()
         self.controller_status_signal = ControllerStatusSignal()
+
+    def open_joy_config(self) -> None:
+        self.joy_config_dialog.exec()
 
     def setupUi(self, MainWindow: QtWidgets.QMainWindow) -> None:
         """
@@ -206,7 +273,10 @@ class Ui_MainWindow(QObject):
         self.left_side = QtWidgets.QVBoxLayout()
         self.left_side.setObjectName("left_side")
 
-        # Frame
+    ######################################################################
+    # HEADER
+    ######################################################################
+        # Frame 
         self.frame = QtWidgets.QFrame(parent=self.centralwidget)
         self.frame.setStyleSheet("background-color: #212529;")
         self.frame.setFrameShape(QtWidgets.QFrame.Shape.WinPanel)
@@ -221,8 +291,8 @@ class Ui_MainWindow(QObject):
 
         # Politocean logo and label
         self.politocean_logo = QtWidgets.QLabel(parent=self.frame)
-        self.politocean_logo.setMinimumSize(QtCore.QSize(70, 77))
-        self.politocean_logo.setMaximumSize(QtCore.QSize(70, 77))
+        self.politocean_logo.setMinimumSize(QtCore.QSize(80, 88))
+        self.politocean_logo.setMaximumSize(QtCore.QSize(80, 88))
         self.politocean_logo.setText("")
         self.politocean_logo.setPixmap(QtGui.QPixmap("images/logo_new.png"))
         self.politocean_logo.setScaledContents(True)
@@ -232,11 +302,13 @@ class Ui_MainWindow(QObject):
         self.politocean_label = QtWidgets.QLabel(parent=self.frame)
         font = QtGui.QFont()
         font.setFamily("FreeSans")
-        font.setPointSize(20)
+        font.setPointSize(40)
         font.setBold(True)
         self.politocean_label.setFont(font)
         self.politocean_label.setObjectName("politocean_label")
         self.top_bar.addWidget(self.politocean_label)
+
+        self.top_bar.addStretch()
 
         # Status icons
         self.controller_status = QtWidgets.QLabel(parent=self.frame)
@@ -268,7 +340,11 @@ class Ui_MainWindow(QObject):
         self.armed_status.setObjectName("armed_status")
         self.armed_status.setMargin(6)
         self.top_bar.addWidget(self.armed_status)
-        self.left_side.addWidget(self.frame)
+        
+
+    ######################################################################
+    # LEFT PART
+    ######################################################################
 
         # Camera frame
         self.frame1 = QtWidgets.QFrame(parent=self.centralwidget)
@@ -285,7 +361,7 @@ class Ui_MainWindow(QObject):
 
         # Main camera image
         self.main_camera_image = QtWidgets.QLabel(parent=self.frame1)
-        self.main_camera_image.setMinimumSize(QtCore.QSize(600, 500))
+        self.main_camera_image.setMinimumSize(QtCore.QSize(900, 700))
         self.main_camera_image.setMaximumSize(QtCore.QSize(1920, 1080))
         self.main_camera_image.setStyleSheet("")
         self.main_camera_image.setFrameShape(QtWidgets.QFrame.Shape.WinPanel)
@@ -314,92 +390,16 @@ class Ui_MainWindow(QObject):
         self.main_camera_label.setObjectName("main_camera_label")
         self.camera_frame.addWidget(self.main_camera_label)
         self.left_side.addWidget(self.frame1)
-        self.gridLayout_2.addLayout(self.left_side, 0, 0, 1, 1)
+        self.gridLayout_2.addLayout(self.left_side, 1, 0)
 
-        # Right side
+    ######################################################################
+    # RIGHT PART
+    ######################################################################
         self.right_side = QtWidgets.QVBoxLayout()
-        self.right_side.setSizeConstraint(QtWidgets.QLayout.SizeConstraint.SetMaximumSize)
+        #self.right_side.setSizeConstraint(QtWidgets.QLayout.SizeConstraint.SetMaximumSize)
         self.right_side.setObjectName("right_side")
-        self.control_panel_box = QtWidgets.QHBoxLayout()
-        self.control_panel_box.setSizeConstraint(QtWidgets.QLayout.SizeConstraint.SetMaximumSize)
-        self.control_panel_box.setObjectName("control_panel_box")
-        self.control_panel = QtWidgets.QPushButton(parent=self.centralwidget)
-        self.control_panel.clicked.connect(self.open_control_panel)
-        self.control_panel.setMinimumSize(QtCore.QSize(200, 60))
-        self.control_panel.setMaximumSize(QtCore.QSize(250, 60))
-        font = QtGui.QFont()
-        font.setFamily("FreeSans")
-        font.setPointSize(14)
-        font.setBold(True)
-        self.control_panel.setFont(font)
-        #self.control_panel.setStyleSheet("background-color: #e5dcdc; color: #212529; box-shadow: rgba(0, 0, 0, 0.19) 0px 10px 20px, rgba(0, 0, 0, 0.23) 0px 6px 6px; border: 2px outset black")
-        self.control_panel.setObjectName("control_panel")
-        self.control_panel_box.addWidget(self.control_panel)
-        self.right_side.addLayout(self.control_panel_box)
 
-        # Camera 1 image
-        self.camera1_image = QtWidgets.QLabel(parent=self.centralwidget)
-        self.camera1_image.setMinimumSize(QtCore.QSize(200, 50))
-        self.camera1_image.setMaximumSize(QtCore.QSize(600, 200))
-        self.camera1_image.setStyleSheet("background-color: #212529;")
-        self.camera1_image.setFrameShape(QtWidgets.QFrame.Shape.WinPanel)
-        self.camera1_image.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
-        self.camera1_image.setLineWidth(4)
-        self.camera1_image.setText("")
-        self.camera1_image.setPixmap(QtGui.QPixmap("images/prev1.jpg"))
-        self.camera1_image.setScaledContents(True)
-        self.camera1_image.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.camera1_image.setObjectName("camera1_image")
-        self.right_side.addWidget(self.camera1_image)
-
-        # Camera 1 label
-        self.camera1_label = QtWidgets.QLabel(parent=self.centralwidget)
-        self.camera1_label.setMinimumSize(QtCore.QSize(0, 40))
-        self.camera1_label.setMaximumSize(QtCore.QSize(2000, 60))
-        font = QtGui.QFont()
-        font.setFamily("FreeSans")
-        font.setPointSize(16)
-        font.setBold(True)
-        self.camera1_label.setFont(font)
-        self.camera1_label.setStyleSheet("background-color: #212529;")
-        self.camera1_label.setFrameShape(QtWidgets.QFrame.Shape.WinPanel)
-        self.camera1_label.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
-        self.camera1_label.setLineWidth(5)
-        self.camera1_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.camera1_label.setObjectName("camera1_label")
-        self.right_side.addWidget(self.camera1_label)
-
-        # Camera 2 image
-        self.camera2_image = QtWidgets.QLabel(parent=self.centralwidget)
-        self.camera2_image.setMinimumSize(QtCore.QSize(100, 50))
-        self.camera2_image.setMaximumSize(QtCore.QSize(600, 200))
-        self.camera2_image.setStyleSheet("background-color: #212529;")
-        self.camera2_image.setFrameShape(QtWidgets.QFrame.Shape.WinPanel)
-        self.camera2_image.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
-        self.camera2_image.setLineWidth(4)
-        self.camera2_image.setText("")
-        self.camera2_image.setPixmap(QtGui.QPixmap("images/prev2.jpg"))
-        self.camera2_image.setScaledContents(False)
-        self.camera2_image.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.camera2_image.setObjectName("camera2_image")
-        self.right_side.addWidget(self.camera2_image)
-
-        # Camera 2 label
-        self.camera2_label = QtWidgets.QLabel(parent=self.centralwidget)
-        self.camera2_label.setMinimumSize(QtCore.QSize(0, 40))
-        self.camera2_label.setMaximumSize(QtCore.QSize(2000, 60))
-        font = QtGui.QFont()
-        font.setFamily("FreeSans")
-        font.setPointSize(14)
-        font.setBold(True)
-        self.camera2_label.setFont(font)
-        self.camera2_label.setStyleSheet("background-color: #212529;")
-        self.camera2_label.setFrameShape(QtWidgets.QFrame.Shape.WinPanel)
-        self.camera2_label.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
-        self.camera2_label.setLineWidth(5)
-        self.camera2_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.camera2_label.setObjectName("camera2_label")
-        self.right_side.addWidget(self.camera2_label)
+        self.right_side.addStretch()
 
         # Sensors frame
         self.sensors_frame_2 = QtWidgets.QFrame(parent=self.centralwidget)
@@ -408,9 +408,10 @@ class Ui_MainWindow(QObject):
         self.sensors_frame_2.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
         self.sensors_frame_2.setLineWidth(5)
         self.sensors_frame_2.setObjectName("sensors_frame_2")
+        self.sensors_frame_2.setMaximumWidth(300)
 
         # Sensors widget
-        self.sensors_widget = QtWidgets.QHBoxLayout(self.sensors_frame_2)
+        self.sensors_widget = QtWidgets.QVBoxLayout(self.sensors_frame_2)
         self.sensors_widget.setObjectName("sensors_widget")
         self.frame2 = QtWidgets.QFrame(parent=self.sensors_frame_2)
         self.frame2.setFrameShape(QtWidgets.QFrame.Shape.WinPanel)
@@ -479,6 +480,7 @@ class Ui_MainWindow(QObject):
         self.roll_value.setLineWidth(2)
         self.roll_value.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.roll_value.setObjectName("roll_value")
+        self.roll_value.setStyleSheet("background-color: black; color: #00FF00; font-family: 'Courier New'; font-weight: bold; border: 1px solid #444;")
 
         self.roll_box.addWidget(self.roll_value)
         self.imu_info.addLayout(self.roll_box)
@@ -511,6 +513,7 @@ class Ui_MainWindow(QObject):
         self.pitch_value.setLineWidth(2)
         self.pitch_value.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.pitch_value.setObjectName("pitch_value")
+        self.pitch_value.setStyleSheet("background-color: black; color: #00FF00; font-family: 'Courier New'; font-weight: bold; border: 1px solid #444;")
 
         self.pitch_box.addWidget(self.pitch_value)
         self.imu_info.addLayout(self.pitch_box)
@@ -543,11 +546,12 @@ class Ui_MainWindow(QObject):
         self.yaw_value.setLineWidth(2)
         self.yaw_value.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.yaw_value.setObjectName("yaw_value")
+        self.yaw_value.setStyleSheet("background-color: black; color: #00FF00; font-family: 'Courier New'; font-weight: bold; border: 1px solid #444;")
 
         self.yaw_box.addWidget(self.yaw_value)
         self.imu_info.addLayout(self.yaw_box)
         self.sensors_widget.addWidget(self.frame2)
-
+        
         # Barometer info
         self.barometer_info = QtWidgets.QVBoxLayout()
         self.barometer_info.setObjectName("barometer_info")
@@ -594,11 +598,71 @@ class Ui_MainWindow(QObject):
         self.dept_value.setLineWidth(2)
         self.dept_value.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.dept_value.setObjectName("dept_value")
+        self.dept_value.setStyleSheet("background-color: black; color: #00FFFF; font-size: 18px; font-weight: bold; border: 2px solid #00FFFF;")
+        
         self.horizontalLayout.addWidget(self.dept_value)
         self.barometer_info.addWidget(self.barometer_box)
         self.sensors_widget.addLayout(self.barometer_info)
         self.right_side.addWidget(self.sensors_frame_2)
-        self.gridLayout_2.addLayout(self.right_side, 0, 1, 1, 1)
+
+        self.right_side.addStretch()
+
+        self.gridLayout_2.addLayout(self.right_side, 1, 1)
+
+        self.joy_config_dialog = JoystickConfigDialog()
+
+        self.joy_config_button = QtWidgets.QPushButton("JOYSTICK CONFIG")
+        self.joy_config_button.setMinimumSize(QtCore.QSize(200, 40))
+        self.joy_config_button.clicked.connect(self.open_joy_config)
+        self.joy_config_button.setStyleSheet("background-color: #2c3e50; color: white; border-radius: 5px;")
+        self.right_side.addWidget(self.joy_config_button)
+
+        self.joy_config_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2c3e50;
+                color: #ecf0f1;
+                border: 1px solid #34495e;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #34495e;
+            }
+        """)
+
+        self.control_panel_box = QtWidgets.QHBoxLayout()
+        self.control_panel_box.setSizeConstraint(QtWidgets.QLayout.SizeConstraint.SetMaximumSize)
+        self.control_panel_box.setObjectName("control_panel_box")
+        self.control_panel = QtWidgets.QPushButton(parent=self.centralwidget)
+        self.control_panel.clicked.connect(self.open_control_panel)
+        self.control_panel.setMinimumSize(QtCore.QSize(200, 60))
+        self.control_panel.setMaximumSize(QtCore.QSize(250, 60))
+        font = QtGui.QFont()
+        font.setFamily("FreeSans")
+        font.setPointSize(14)
+        font.setBold(True)
+        self.control_panel.setFont(font)
+        #self.control_panel.setStyleSheet("background-color: #e5dcdc; color: #212529; box-shadow: rgba(0, 0, 0, 0.19) 0px 10px 20px, rgba(0, 0, 0, 0.23) 0px 6px 6px; border: 2px outset black")
+        self.control_panel.setObjectName("control_panel")
+        self.control_panel_box.addWidget(self.control_panel)
+        self.right_side.addLayout(self.control_panel_box)
+        
+        self.control_panel.setStyleSheet("""
+            QPushButton {
+                background-color: #495057;
+                color: white;
+                border: 2px solid #6c757d;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #6c757d;
+            }
+        """)
+
+        self.gridLayout_2.setColumnStretch(0, 4) 
+        self.gridLayout_2.setColumnStretch(1, 1) 
+
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(parent=MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 1093, 22))
@@ -609,6 +673,8 @@ class Ui_MainWindow(QObject):
         MainWindow.setStatusBar(self.statusbar)
         # TOFIX: Calling control panel stucks the GUI
         self.control_panel_dialog = ControlPanelDialog(self.logs)
+
+        self.gridLayout_2.addWidget(self.frame, 0, 0, 1, 2)
 
         # declare shortcuts
         self.getShortcuts(MainWindow)
@@ -649,8 +715,8 @@ class Ui_MainWindow(QObject):
         self.politocean_label.setText(_translate("MainWindow", "PoliTOcean"))
         self.main_camera_label.setText(_translate("MainWindow", "MAIN CAMERA"))
         self.control_panel.setText(_translate("MainWindow", "CONTROL PANEL"))
-        self.camera1_label.setText(_translate("MainWindow", "CAMERA 1"))
-        self.camera2_label.setText(_translate("MainWindow", "CAMERA 2"))
+        #self.camera1_label.setText(_translate("MainWindow", "CAMERA 1"))
+        #self.camera2_label.setText(_translate("MainWindow", "CAMERA 2"))
         self.roll_text.setText(_translate("MainWindow", "ROLL"))
         self.roll_value.setText(_translate("MainWindow", "0°"))
         self.pitch_text.setText(_translate("MainWindow", "PITCH"))
@@ -666,11 +732,11 @@ class Ui_MainWindow(QObject):
         self.main_camera0_shortcut = QShortcut(QKeySequence("Ctrl+1"), MainWindow)
         self.main_camera0_shortcut.activated.connect(lambda: self.switch_camera(0))
         # Create a new shortcut for switching to the camera 1
-        self.main_camera1_shortcut = QShortcut(QKeySequence("Ctrl+2"), MainWindow)
-        self.main_camera1_shortcut.activated.connect(lambda: self.switch_camera(1))
+        #self.main_camera1_shortcut = QShortcut(QKeySequence("Ctrl+2"), MainWindow)
+        #self.main_camera1_shortcut.activated.connect(lambda: self.switch_camera(1))
         # Create a new shortcut for switching to the camera 2
-        self.main_camera2_shortcut = QShortcut(QKeySequence("Ctrl+3"), MainWindow)
-        self.main_camera2_shortcut.activated.connect(lambda: self.switch_camera(2))
+        #self.main_camera2_shortcut = QShortcut(QKeySequence("Ctrl+3"), MainWindow)
+        #self.main_camera2_shortcut.activated.connect(lambda: self.switch_camera(2))
         # Shortcut for the control panel
         self.control_panel_shortcut = QShortcut(QKeySequence("Ctrl+C"), MainWindow)
         self.control_panel_shortcut.activated.connect(self.open_control_panel)
