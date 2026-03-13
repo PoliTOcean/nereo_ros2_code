@@ -1,0 +1,19 @@
+[Unit]
+Description=Nereo IMU and Barometer Sensors
+After=network.target nereo-micro-ros.service
+Wants=nereo-micro-ros.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi
+ExecStart=/home/pi/nereo_ros2_code/scripts/rpi/nereo_ros_env.sh /home/pi/nereo_ros2_code/scripts/rpi/nereo_sensors_start.sh
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment="HOME=/home/pi"
+Environment="ROS_DOMAIN_ID=0"
+
+[Install]
+WantedBy=multi-user.target

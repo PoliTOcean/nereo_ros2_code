@@ -1,0 +1,20 @@
+[Unit]
+Description=Nereo Micro-ROS Agent
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/pi
+ExecStartPre=+/bin/chmod 666 /dev/ttyAMA0
+ExecStart=/home/pi/nereo_ros2_code/scripts/rpi/nereo_ros_env.sh ros2 run micro_ros_agent micro_ros_agent serial -b 115200 --dev /dev/ttyAMA0
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment="HOME=/home/pi"
+Environment="ROS_DOMAIN_ID=0"
+
+[Install]
+WantedBy=multi-user.target

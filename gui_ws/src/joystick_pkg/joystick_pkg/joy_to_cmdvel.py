@@ -27,6 +27,7 @@ class JoyToCmdVelNode(Node):
         
         self.cmd_vel_publisher = self.create_publisher(
             CommandVelocity,
+            #'/nereo_cmd_vel_no_fb', //when using ros2 tuning aid
             '/nereo_cmd_vel',
             10
         )
