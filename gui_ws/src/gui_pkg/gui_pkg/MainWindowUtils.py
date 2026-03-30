@@ -174,7 +174,7 @@ class JoystickConfigDialog(QDialog):
 
         # Joystick Image Slot
         self.joy_image = QLabel()
-        pixmap = QtGui.QPixmap("images/joy.png") 
+        pixmap = QtGui.QPixmap("gui_ws/images/joy.png") 
         
         if pixmap.isNull():
             self.joy_image.setText("IMAGE NOT FOUND")
