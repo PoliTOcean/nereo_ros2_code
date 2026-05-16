@@ -21,20 +21,21 @@ Item {
             clip: true
 
             Image {
-                anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: parent.top
-                anchors.topMargin: 10
+                anchors.bottom: yawBottomBar.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: 2 
                 source: "../assets/icons/yaw_icon.svg"
                 fillMode: Image.PreserveAspectFit
                 smooth: true
                 mipmap: true
-                width: parent.width * 1.0
-                height: parent.height * 1.0
                 rotation: root.yaw
                 opacity: 0.9
             }
 
             Rectangle {
+                id: yawBottomBar
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
@@ -64,20 +65,21 @@ Item {
             clip: true
 
             Image {
-                anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: parent.top
-                anchors.topMargin: 10
+                anchors.bottom: rollBottomBar.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: 2
                 source: "../assets/icons/roll_icon.svg"
                 fillMode: Image.PreserveAspectFit
                 smooth: true
                 mipmap: true
-                width: parent.width * 1.0
-                height: parent.height * 1.0
                 rotation: root.roll
                 opacity: 0.9
             }
 
             Rectangle {
+                id: rollBottomBar
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
@@ -100,27 +102,28 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "#0b1116"
+            color: "transparent"
             border.color: "#263441"
             border.width: 1
             radius: 6
             clip: true
 
             Image {
-                anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: parent.top
-                anchors.topMargin: 10
+                anchors.bottom: pitchBottomBar.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: 2
                 source: "../assets/icons/pitch_icon.svg"
                 fillMode: Image.PreserveAspectFit
                 smooth: true
                 mipmap: true
-                width: parent.width * 1.0
-                height: parent.height * 1.0
                 rotation: root.pitch
                 opacity: 0.9
             }
 
             Rectangle {
+                id: pitchBottomBar
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
