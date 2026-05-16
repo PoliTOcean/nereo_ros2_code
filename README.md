@@ -11,8 +11,9 @@ Current stack in the repo scripts is aligned to ROS 2 Jazzy.
 ## ROS 2 packages
 
 1. `gui_pkg`
-    - GUI node and diagnostics visualization.
-    - Subscribes to sensor/diagnostic topics and triggers arm/disarm service.
+    - QML-based GUI node and diagnostics visualization.
+    - Subscribes to sensor/diagnostic topics and triggers arm/disarm service via an integrated asynchronous bridge.
+    - Includes a built-in telemetry simulator for testing purposes.
 
 2. `joystick_pkg`
     - Reads joystick data and publishes vehicle command velocity.
@@ -31,9 +32,9 @@ Current stack in the repo scripts is aligned to ROS 2 Jazzy.
 - `joy_to_cmd_vel` (`gui_ws/src/joystick_pkg/joystick_pkg/joy_to_cmdvel.py`)
    - Reads joystick and publishes `CommandVelocity` on `/nereo_cmd_vel`.
 - `gui_node` (`gui_ws/src/gui_pkg/gui_pkg/gui_node.py`)
-   - Subscribes to sensor/diagnostic/joy topics to update UI and state.
-- `rov_arm_disarm_service_client` (`gui_ws/src/gui_pkg/gui_pkg/Services.py`)
-   - Service client for `/set_rov_arm_mode` (`std_srvs/srv/SetBool`).
+   - Main control station interface. Fuses ROS 2 topics with the QtQuick/QML engine and acts as a client for `/set_rov_arm_mode`.
+- `imu_random_node` (`gui_ws/src/gui_pkg/gui_pkg/simple_publisher_imu_node.py`)
+   - **Simulation utility**. Generates and publishes dynamic dummy data for both IMU and Barometer to test the interface locally.
 
 ### Detailed behavior: what each node does and where
 
@@ -81,37 +82,38 @@ Current stack in the repo scripts is aligned to ROS 2 Jazzy.
 - **Node name**: `gui_node`
 - **Main responsibility**:
    - Subscribes to sensor/diagnostic/joystick topics.
-   - Feeds UI values (depth, roll/pitch/yaw) and peripheral diagnostic status.
-   - Tracks joystick link health with a periodic connection check.
-   - Triggers arm/disarm workflow through the service client.
+   - Bridges telemetry data directly into the QML context property layer (`RosBridge`).
+   - Tracks joystick link health with a periodic 1-second timeout connection check.
+   - Intercepts joystick buttons and GUI events to dispatch asynchronous `/set_rov_arm_mode` service calls.
 - **Subscribed topics**:
    - `imu_data` (`sensor_msgs/msg/Imu`)
    - `barometer_pressure` (`sensor_msgs/msg/FluidPressure`)
-   - `barometer_diagnostic` (`diagnostic_msgs/msg/DiagnosticArray`)
-   - `imu_diagnostic` (`diagnostic_msgs/msg/DiagnosticArray`)
-   - `diagnostic_messages` (`diagnostic_msgs/msg/DiagnosticArray`)
    - `joy` (`sensor_msgs/msg/Joy`)
 - **Execution model**:
-   - Runs inside a dedicated ROS thread in the GUI process.
-   - Uses an internal queue + worker thread (`SensorProcessor`) to decouple UI updates.
+   - Non-blocking execution running on the Qt event thread. Telemetry updates are synchronized natively using a high-frequency `QTimer` invoking `rclpy.spin_once()`.
 
-#### 5) `rov_arm_disarm_service_client` (Control station side)
-- **Where**: `gui_ws/src/gui_pkg/gui_pkg/Services.py`
-- **Node name**: `rov_arm_disarm_service_client`
+#### 5) `imu_random_node` (Control station side - Simulation)
+- **Where**: `gui_ws/src/gui_pkg/gui_pkg/simple_publisher_imu_node.py`
+- **Node name**: `sensors_random_node`
 - **Main responsibility**:
-   - Connects to `/set_rov_arm_mode` service (`SetBool`).
-   - Handles reconnection retries and keeps local arm state.
-   - Executes arm/disarm requests triggered by GUI/joystick events.
+   - Built-in GUI simulator tool.
+   - Generates synthetic continuous sinusoidal movements converting Euler angles into native quaternions to simulate ROV pitch, roll, and yaw waves.
+   - Simulates depth variations around a 5-meter midpoint by calculating the equivalent inverted Pascal fluid pressure.
+- **Published topics**:
+   - `imu_data` (`sensor_msgs/msg/Imu`)
+   - `barometer_pressure` (`sensor_msgs/msg/FluidPressure`)
+- **Execution model**:
+   - Periodic wall timer running at 10 Hz.
 
 ### Publisher / Subscriber matrix
 
 | Node | Publishers | Subscribers | Services |
 |---|---|---|---|
-| `imu_publisher` | `imu_data` (`sensor_msgs/msg/Imu`), `imu_diagnostic` (`diagnostic_msgs/msg/DiagnosticArray`) | - | - |
-| `bar_publisher` | `barometer_temperature` (`sensor_msgs/msg/Temperature`), `barometer_pressure` (`sensor_msgs/msg/FluidPressure`), `barometer_diagnostic` (`diagnostic_msgs/msg/DiagnosticArray`) | - | - |
-| `joy_to_cmd_vel` | `/nereo_cmd_vel` (`nereo_interfaces/msg/CommandVelocity`) | - | - |
-| `gui_node` | - | `imu_data`, `barometer_pressure`, `barometer_diagnostic`, `imu_diagnostic`, `diagnostic_messages`, `joy` | Uses `rov_arm_disarm_service_client` logic |
-| `rov_arm_disarm_service_client` | - | - | Client of `/set_rov_arm_mode` (`SetBool`) |
+| `imu_publisher` | `imu_data`, `imu_diagnostic` | - | - |
+| `bar_publisher` | `barometer_temperature`, `barometer_pressure`, `barometer_diagnostic` | - | - |
+| `joy_to_cmd_vel` | `/nereo_cmd_vel` | - | - |
+| `gui_node` | - | `imu_data`, `barometer_pressure`, `joy` | Client of `/set_rov_arm_mode` (`SetBool`) |
+| `imu_random_node` | `imu_data`, `barometer_pressure` | - | - |
 
 ### Mermaid diagram - workspace architecture
 
@@ -125,75 +127,77 @@ graph LR
    subgraph CTRL[gui_ws - Control Station]
       GUI[gui_node]
       JOY[joy_to_cmd_vel]
-      ARM[rov_arm_disarm_service_client]
+      SIM[imu_random_node]
    end
 
    JDRV[joystick_driver external]
 
-   IMU -->|imu_data| GUI
-   IMU -->|imu_diagnostic| GUI
-   BAR -->|barometer_pressure| GUI
-   BAR -->|barometer_temperature| GUI
-   BAR -->|barometer_diagnostic| GUI
-
-   JOY -->|nereo_cmd_vel| ROV[(ROV control stack)]
+   IMU -.->|Real Telemetry| GUI
+   BAR -.->|Real Telemetry| GUI
+   SIM ===>|Simulated Telemetry| GUI
+   
    JDRV -->|joy| GUI
-
-   GUI -->|arm/disarm trigger| ARM
-   ARM -->|SetBool set_rov_arm_mode| ROV
+   JOY -->|nereo_cmd_vel| ROV[(ROV control stack)]
+   GUI -->|SetBool set_rov_arm_mode| ROV
 ```
 
-### Mermaid diagram - topic-centric view
+### Local GUI testing (Without ROV Hardware)
 
-```mermaid
-graph TB
-   imu_data((imu_data))
-   imu_diag((imu_diagnostic))
-   bar_p((barometer_pressure))
-   bar_t((barometer_temperature))
-   bar_diag((barometer_diagnostic))
-   joy_t((joy))
-   nereo_cmd((nereo_cmd_vel))
-   srv{{set_rov_arm_mode SetBool}}
+You can spin up the full QML Dashboard and feed it simulated telemetry directly from your local machine using the built-in standalone simulator.
 
-   imu_node[imu_publisher]
-   bar_node[bar_publisher]
-   gui_node[gui_node]
-   joy_node[joy_to_cmd_vel]
-   arm_node[rov_arm_disarm_service_client]
+#### 1. Build the workspace
+Ensure your packages are properly compiled using symlinks for easy frontend updates:
 
-   imu_node --> imu_data
-   imu_data --> gui_node
-   imu_node --> imu_diag
-   imu_diag --> gui_node
-
-   bar_node --> bar_p
-   bar_p --> gui_node
-   bar_node --> bar_t
-   bar_t --> gui_node
-   bar_node --> bar_diag
-   bar_diag --> gui_node
-
-   joy_t --> gui_node
-   joy_node --> nereo_cmd
-
-   gui_node --> arm_node
-   arm_node --> srv
+```bash
+cd nereo_ros2_code/gui_ws
+colcon build --symlink-install
+source install/setup.zsh
 ```
 
-## Unit test usage
+#### 2. Launch the QML Dashboard
+Start the primary user interface node. The multi-camera GStreamer engines will safely load blank pitch-black fallbacks if video streams are offline:
+
+```bash
+ros2 run gui_pkg gui_node
+```
+
+#### 3. Run the telemetry simulator
+In a separate terminal, trigger the ununified random node to inject dynamic spatial data:
+
+```bash
+source install/setup.zsh
+ros2 run gui_pkg imu_random_node
+```
+
+The QML compass and 2D widgets will immediately reflect realistic continuous pitch/roll rotations, and the **DEPTH** readout will autonomously fluctuate to confirm operational parsing.
+
+#### 4. Mocking the ARM service
+To test button behaviors inside the **Control Panel** window without an active physical ROV server, you can command terminal-based feedback:
+
+```bash
+ros2 service reply /set_rov_arm_mode std_srvs/srv/SetBool "{success: true, message: 'Simulated feedback success'}"
+```
+
+### Local GUI testing (simpler)
+
+Run `check_controls.py` to check rov and joystick connection badges, arm status and telemetry.
+Run `cam_test.sh` to start 3 video streams to check if the videoBox work
+
+---
+
+### Unit test usage
 
 Inside `unit_tests`, you can find subdirectories containing CMake projects used to run simple debugging tests on stdout.
 
-### Unit test setup instructions
+#### Unit test setup instructions
 
 1. Move into a specific test folder, for example `unit_tests/my_unit_test`.
 2. Configure and build:
-    ```bash
+    ```
     cmake .
     make
     ```
 3. Run the produced executable (same name as the folder):
-    ```bash
-    ./my_unit_test
-    ```
+   ```
+   ./my_unit_test
+   ```

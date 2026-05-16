@@ -1,318 +1,296 @@
 import sys
-import time
+import os
+import gi
 import rclpy
+import threading
 from rclpy.node import Node
 from rclpy.duration import Duration
-import threading
-from queue import Queue
-import message_filters
+from ament_index_python.packages import get_package_share_directory
 
-from PyQt6 import QtGui
-from PyQt6.QtWidgets import QApplication,  QTableWidgetItem, QMainWindow, QLabel
-from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import QObject, QThread, pyqtSignal, Qt
+from PyQt6.QtGui import QGuiApplication, QImage
+from PyQt6.QtQml import QQmlApplicationEngine
+from PyQt6.QtQuick import QQuickImageProvider
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtProperty, QTimer, pyqtSlot
+
+gi.require_version('Gst', '1.0')
+from gi.repository import Gst
+
 from tf_transformations import euler_from_quaternion
-
-from . import MainWindowUtils, PoliciesUtils
-from .Services import ROVArmDisarmServiceClient
-
-from sensor_msgs.msg import Imu, FluidPressure, Joy, Temperature
-from diagnostic_msgs.msg import DiagnosticArray
+from sensor_msgs.msg import Imu, FluidPressure, Joy
+from std_srvs.srv import SetBool
+from . import PoliciesUtils
 
 
-class SensorProcessor(threading.Thread):
-    def __init__(self, node, ui) -> None:
-        super().__init__()
-        self.node = node
-        self.queue = Queue(maxsize=100)
-        self.running = True
-        self.ui = ui
+class CamStreamer:
+    def __init__(self, port: int):
+        self.port = port
+        self.processing_frame = False
+        self.pipeline = None
+        self.appsink = None
+        self.lock = threading.Lock()
 
-
-    def run(self) -> None:
-        while self.running:
-            item = self.queue.get()
-            if item is None:
-                break
-            topic, msg = item
-            self.process_sensor_data(topic, msg)
-
-
-    def rotate_image(self, angle: float, label: QLabel, original_pixmap_path: str) -> None:
-
-        original_pixmap = QtGui.QPixmap(original_pixmap_path)
-
-        # Create a new pixmap for the rotated image
-        rotated_pixmap = QtGui.QPixmap(original_pixmap.size())
-        rotated_pixmap.fill(QtGui.QColor(0, 0, 0, 0))
-
-        # Create a QPainter to draw the rotated image
-        painter = QtGui.QPainter(rotated_pixmap)
-        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-        painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
-
-        # Translate the painter to the center of the pixmap and rotate
-        painter.translate(original_pixmap.width() / 2, original_pixmap.height() / 2)
-        painter.rotate(angle * 180 / 3.14159)
-        painter.translate(-original_pixmap.width() / 2, -original_pixmap.height() / 2)
-
-        # Draw the scaled pixmap onto the rotated pixmap
-        painter.drawPixmap(0, 0, original_pixmap)
-        painter.end()
-
-        # Set the rotated pixmap to the label
-        label.setPixmap(rotated_pixmap)
-
-
-    def process_sensor_data(self, topic: str, msg: any) -> None:
-        """
-        Function to process the sensor data based on the topic specified.
-        """
-        if topic == 'imu_data':
-            self.update_imu(msg)
-
-        elif topic == 'barometer_pressure':
-            self.update_barometer(msg)
-
-
-    def update_barometer(self, msg: FluidPressure) -> None:
-        depth = (msg.fluid_pressure - 101325) / 9806.65
-        self.ui.dept_value.setText(f"{depth:.2f} m")
-
-
-    def update_imu(self, msg: Imu) -> None:
-
-        angles = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
-        angles = euler_from_quaternion(angles)
-
-        self.ui.roll_value.setText(f"{angles[0]:.2f}°")
-        self.ui.pitch_value.setText(f"{angles[1]:.2f}°")
-        self.ui.yaw_value.setText(f"{angles[2]:.2f}°")
-
-        # ROTATION OF THE IMAGES
-        self.rotate_image(angles[1], self.ui.side_image, self.ui.side_image_path)
-        self.rotate_image(angles[2], self.ui.top_image, self.ui.top_image_path)
-
-class ROS2NodeThread(QThread):
-
-    def __init__(self, node: Node) -> None:
-        super().__init__()
-        self.node = node
-
-    def run(self) -> None:
-        # Start spinning the node in this thread
-        rclpy.spin(self.node)
-
-class ROS2Node(Node, QObject):
-
-    controller_status_signal = pyqtSignal(bool)  # Define as class variable
-    arm_disarm_signal = pyqtSignal()  # Signal for arm/disarm operations
-
-    def __init__(self) -> None:
-        """
-        Function to initialize the ROS2 node.
-        All the signals are defined here and the subscriptions are created.
-        """
-        Node.__init__(self, 'gui_node')
-        QObject.__init__(self)
-        self.last_frame_time = time.time()
-        self.target_fps = 15
-        self.last_message_time = None  # Initialize last_message_time
-
-        self.data_logged = 0
-    
-    def setup(self, ui: MainWindowUtils.Ui_MainWindow) -> None:
-
-        self.ui = ui
+        self.latest_image = QImage(640, 480, QImage.Format.Format_RGB888)
+        self.latest_image.fill(0x1a252c)
         
-        # Initialize the arm/disarm service client
-        self.arm_disarm_client = ROVArmDisarmServiceClient()
-        
-        # Connect arm/disarm signal
-        self.arm_disarm_signal.connect(
-            self.ui.control_panel_dialog.arm_disarm_dialog.change_status,
-            Qt.ConnectionType.QueuedConnection
+        self.pipeline = self.create_pipeline(port)
+        self.pipeline.set_state(Gst.State.PLAYING)
+
+    def create_pipeline(self, port: int):
+        pipeline_str = (
+            f"udpsrc address=0.0.0.0 port={port} reuse=true ! application/x-rtp, payload=96 ! "
+            f"rtph264depay ! avdec_h264 ! videoconvert ! "
+            f"video/x-raw, format=RGB ! appsink name=sink"
         )
-
-        # Create joystick connection check timer
-        self.joy_timer = self.create_timer(0.5, self.check_joystick_connection)  # Check every 0.5 seconds
-        self.joy_timer.cancel()  # Start with timer cancelled
-
-        self.subscription_imu_data = self.create_subscription(
-                Imu,
-                'imu_data',
-                self.imu_data_callback,
-                #PoliciesUtils.sensor_qos
-                5)
-
-        self.subscription_barometer_pressure = self.create_subscription(
-                FluidPressure,
-                'barometer_pressure',
-                self.barometer_pressure_callback,
-                PoliciesUtils.sensor_qos)
-
-        """
-        self.subscription_barometer_temperature = self.create_subscription(
-                Temperature,
-                'barometer_temperature',
-                self.barometer_temperature_callback,
-                PoliciesUtils.sensor_qos)
-        """
-
-        self.subscription_barometer_diagnostic = self.create_subscription(
-                DiagnosticArray,
-                'barometer_diagnostic',
-                self.barometer_diagnostic_callback,
-                PoliciesUtils.sensor_qos)
-
-        self.subscription_imu_diagnostic = self.create_subscription(
-                DiagnosticArray,
-                'imu_diagnostic',
-                self.imu_diagnostic_callback,
-                PoliciesUtils.sensor_qos)
-
-#        self.subscription_thrust_status = self.create_subscription(
-#                ThrusterStatuses,
-#                'thruster_status',
-#                self.thrust_status_callback,
-#                PoliciesUtils.reliable_qos)
-
-        self.subscription_diagnostic_messages = self.create_subscription(
-                DiagnosticArray,
-                'diagnostic_messages',
-                self.diagnostic_messages_callback,
-                PoliciesUtils.sensor_qos)
-
-        self.subscription_joystick = self.create_subscription(
-                Joy,
-                'joy',
-                self.joystick_callback,
-                PoliciesUtils.sensor_qos)
-
-        self.last_frame_time = self.get_clock().now()
-        self.frame_interval = 1.0 / 30  # 30 FPS frame rate limiter
-
-
-        self.sensor_processor = SensorProcessor(self, self.ui)
-        self.sensor_processor.start()
-
-        imu_sub = message_filters.Subscriber(self, Imu, 'imu_data', qos_profile=PoliciesUtils.sensor_qos)
-        ts = message_filters.ApproximateTimeSynchronizer([imu_sub], 10, 0.1)
-        ts.registerCallback(self.imu_data_callback)
-
-
-    # CALLBACK FUNCTIONS =================================================================================================
-
-    def destroy_node(self) -> None:
-        self.sensor_processor.running = False
-        self.sensor_processor.queue.put(None)
-        self.sensor_processor.join()
-        super().destroy_node()
-
-    def imu_data_callback(self, msg: Imu) -> None:
-
-        if not self.sensor_processor.queue.full():
-            self.sensor_processor.queue.put(('imu_data', msg))
-
-    def barometer_pressure_callback(self, msg: FluidPressure) -> None:
-        if not self.sensor_processor.queue.full():
-            self.sensor_processor.queue.put(('barometer_pressure', msg))
-
-    def handle_diagnostics(self, diagnostic_array: DiagnosticArray, peripheralName: str, index: int) -> None:
-        """
-        Function to handle the diagnostics of the peripheral.
-        It will update the logs and the status of the peripheral in the UI.
-        """
-        errors = ["OK", "WARNING", "ERROR", "STALE", "UNKNOWN"]
-        diagnostic_string = ""
-        max_error = 0
-
-        for diagnostic in diagnostic_array:
-
-            if int.from_bytes(diagnostic.level, "big") > max_error:
-                max_error = int.from_bytes(diagnostic.level, "big")
-
-            level = errors[int.from_bytes(diagnostic.level, "big")]
-
-            diagnostic_string += f"[{level}] {diagnostic.name}: {diagnostic.message}\n"
-
-        self.ui.logs[peripheralName] = diagnostic_string
-        self.ui.control_panel_dialog.peripherals_table.setItem(index, 1, QTableWidgetItem(errors[max_error]))
-        self.ui.control_panel_dialog.peripherals_table.item(index, 1).setBackground(self.ui.control_panel_dialog.get_color(errors[max_error]))
-
-    def barometer_diagnostic_callback(self, msg: DiagnosticArray) -> None:
-        self.handle_diagnostics(msg.status, "Barometer", 1)
-
-    def imu_diagnostic_callback(self, msg: DiagnosticArray) -> None:
-        self.handle_diagnostics(msg.status, "IMU", 2)
-
-    def diagnostic_messages_callback(self, msg: DiagnosticArray) -> None:
-
-        self.handle_diagnostics(msg.status, "Diagnostic MicroROS", 4)
-
-    def joystick_callback(self, msg: Joy) -> None:
-        self.last_message_time = self.get_clock().now()
+        pipeline = Gst.parse_launch(pipeline_str)
         
-        # Reset the timer to start monitoring connection
-        self.joy_timer.reset()
-        
-        # Emit signal instead of directly updating UI
-        self.controller_status_signal.emit(True)
-        
-        # Check 7th button and if pressed update Service joy_button
-        button = msg.buttons[6]
-        if button == 1:
-            self.arm_disarm_signal.emit()  # Emit signal instead of direct call
-            self.get_logger().info("BUTTON PRESSED, ARM/DISARM CALLED")
+        self.appsink = pipeline.get_by_name("sink")
+        self.appsink.set_property("emit-signals", True)
+        self.appsink.connect("new-sample", self.on_new_sample)
+        return pipeline
 
-    def check_joystick_connection(self) -> None:
-        if self.last_message_time is None:
-            return
+    def on_new_sample(self, sink):
+        try:
+            if self.processing_frame:
+                return Gst.FlowReturn.OK
+
+            self.processing_frame = True
+            sample = sink.emit("pull-sample")
+            if not sample:
+                self.processing_frame = False
+                return Gst.FlowReturn.ERROR
+
+            buffer = sample.get_buffer()
+            if not buffer:
+                self.processing_frame = False
+                return Gst.FlowReturn.ERROR
+
+            width, height = self.get_frame_resolution(sample)
+            image = self.extract_image_from_buffer(buffer, width, height)
+
+            if image:
+                with self.lock:
+                    self.latest_image = image
+
+            self.processing_frame = False
+            return Gst.FlowReturn.OK
+
+        except Exception as e:
+            self.processing_frame = False
+            print(f"[Cam {self.port}] Errore processing frame: {e}")
+            return Gst.FlowReturn.ERROR
+
+    def get_frame_resolution(self, sample):
+        caps = sample.get_caps()
+        width = caps.get_structure(0).get_int("width")[1]
+        height = caps.get_structure(0).get_int("height")[1]
+        return width, height
+
+    def extract_image_from_buffer(self, buffer, width, height):
+        success, map_info = buffer.map(Gst.MapFlags.READ)
+        if not success:
+            return None
+
+        try:
+            if map_info.data:
+                return QImage(map_info.data, width, height, QImage.Format.Format_RGB888).copy()
+            return None
+        finally:
+            buffer.unmap(map_info)
+
+    def stop(self):
+        if self.pipeline:
+            print(f"Chiusura pipeline porta {self.port}")
+            self.pipeline.set_state(Gst.State.NULL)
+
+
+class VideoImageProvider(QQuickImageProvider):
+    def __init__(self):
+        super().__init__(QQuickImageProvider.ImageType.Image)
+        self.cameras = {
+            "main_cam": CamStreamer(port=5001),
+            "cam_1": CamStreamer(port=5002),
+            "cam_2": CamStreamer(port=5003)
+        }
+
+    def requestImage(self, id_str, size):
+        cleaned_id = id_str.lstrip('/')
+        cam_name = cleaned_id.split("?")[0]
+
+        if cam_name in self.cameras:
+            streamer = self.cameras[cam_name]
+            with streamer.lock:
+                if streamer.latest_image and not streamer.latest_image.isNull():
+                    return streamer.latest_image, streamer.latest_image.size()
+        
+        fail_img = QImage(640, 480, QImage.Format.Format_RGB888)
+        fail_img.fill(0x333333) 
+        return fail_img, fail_img.size()
+    
+    def cleanup(self):
+        for cam in self.cameras.values():
+            cam.stop()
+
+
+class ROSQmlBridge(QObject):
+    roll_changed = pyqtSignal(float)
+    pitch_changed = pyqtSignal(float)
+    yaw_changed = pyqtSignal(float)
+    depth_changed = pyqtSignal(float)
+    joy_status_changed = pyqtSignal(bool)
+    rov_armed_changed = pyqtSignal(bool)
+    rov_connected_changed = pyqtSignal(bool)
+
+    def __init__(self, node: Node):
+        super().__init__()
+        self.node = node
+        
+        self._roll = 0.0
+        self._pitch = 0.0
+        self._yaw = 0.0
+        self._depth = 0.0
+        self._joystick_connected = False
+        self._rov_armed = False
+        self._rov_connected = False
+        
+        self.last_joy_time = None
+        self.last_imu_time = None 
+
+        self.arm_client = self.node.create_client(SetBool, '/set_rov_arm_mode')
+        
+        self.sub_imu = self.node.create_subscription(
+            Imu, 'imu_data', self.imu_callback, PoliciesUtils.sensor_qos)
+        self.sub_barometer = self.node.create_subscription(
+            FluidPressure, 'barometer_pressure', self.barometer_callback, PoliciesUtils.sensor_qos)
+        self.sub_joystick = self.node.create_subscription(
+            Joy, 'joy', self.joystick_callback, PoliciesUtils.sensor_qos)
+
+    @pyqtProperty(float, notify=roll_changed)
+    def rovRoll(self): return self._roll
+
+    @pyqtProperty(float, notify=pitch_changed)
+    def rovPitch(self): return self._pitch
+
+    @pyqtProperty(float, notify=yaw_changed)
+    def rovYaw(self): return self._yaw
+
+    @pyqtProperty(float, notify=depth_changed)
+    def rovDepth(self): return self._depth
+
+    @pyqtProperty(bool, notify=joy_status_changed)
+    def joystickConnected(self): return self._joystick_connected
+
+    @pyqtProperty(bool, notify=rov_armed_changed)
+    def rovArmed(self): return self._rov_armed
+
+    @pyqtProperty(bool, notify=rov_connected_changed)
+    def rovConnected(self): return self._rov_connected
+
+    def imu_callback(self, msg: Imu):
+        self.last_imu_time = self.node.get_clock().now()
+        if not self._rov_connected:
+            self._rov_connected = True
+            self.rov_connected_changed.emit(True)
+
+        try:
+            angles = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
+            roll, pitch, yaw = euler_from_quaternion(angles)
+            self._roll = roll * 180.0 / 3.14159
+            self._pitch = pitch * 180.0 / 3.14159
+            self._yaw = yaw * 180.0 / 3.14159
             
-        current_time = self.get_clock().now()
-        delta_time = current_time - self.last_message_time
+            self.roll_changed.emit(self._roll)
+            self.pitch_changed.emit(self._pitch)
+            self.yaw_changed.emit(self._yaw)
+        except Exception:
+            pass
 
-        if delta_time > Duration(seconds=1):
-            self.controller_status_signal.emit(False)
-        else:
-            self.controller_status_signal.emit(True)
+    def barometer_callback(self, msg: FluidPressure):
+        self._depth = (msg.fluid_pressure - 101325) / 9806.65
+        self.depth_changed.emit(self._depth)
 
-# MAIN FUNCTION ==========================================================================================================
+    def joystick_callback(self, msg: Joy):
+        self.last_joy_time = self.node.get_clock().now()
+        if not self._joystick_connected:
+            self._joystick_connected = True
+            self.joy_status_changed.emit(True)
+        
+        if len(msg.buttons) > 6 and msg.buttons[6] == 1:
+            self.sendArmCommand(not self._rov_armed)
 
-def main() -> None:
+    def check_joystick_timeout(self):
+        if self.last_joy_time is None:
+            return
+        current_time = self.node.get_clock().now()
+        if (current_time - self.last_joy_time) > Duration(seconds=1):
+            if self._joystick_connected:
+                self._joystick_connected = False
+                self.joy_status_changed.emit(False)
+
+    def check_rov_timeout(self):
+        if self.last_imu_time is None:
+            return
+        current_time = self.node.get_clock().now()
+        if (current_time - self.last_imu_time) > Duration(seconds=1.5):
+            if self._rov_connected:
+                self._rov_connected = False
+                self.rov_connected_changed.emit(False)
+
+    @pyqtSlot(bool)
+    def sendArmCommand(self, arm_request: bool):
+        if not self.arm_client.service_is_ready():
+            return
+        request = SetBool.Request()
+        request.data = arm_request
+        future = self.arm_client.call_async(request)
+        future.add_done_callback(lambda fut: self.arm_service_response_callback(fut, arm_request))
+
+    def arm_service_response_callback(self, future, requested_state):
+        try:
+            response = future.result()
+            if response and response.success:
+                self._rov_armed = requested_state
+                self.rov_armed_changed.emit(self._rov_armed)
+        except Exception:
+            pass
+
+
+def main():
     rclpy.init(args=sys.argv)
+    node = Node('gui_node')
     
-    # Create the ROS2 node
-    node = ROS2Node()
-    
-    # Move the node to a separate thread
-    ros2_thread = ROS2NodeThread(node)
+    app = QGuiApplication(sys.argv)
+    Gst.init(None)
 
-    app = QApplication(sys.argv)
+    engine = QQmlApplicationEngine()
 
-    main_window = QMainWindow()
-    ui = MainWindowUtils.Ui_MainWindow()
-    ui.setupUi(main_window)
+    video_provider = VideoImageProvider()
+    engine.addImageProvider("videostream", video_provider)
 
-    node.setup(ui=ui)
-    
-    # Connect signals using Qt.QueuedConnection to ensure thread safety
-    node.moveToThread(ros2_thread)
+    bridge = ROSQmlBridge(node)
+    engine.rootContext().setContextProperty("RosBridge", bridge)
 
-    node.controller_status_signal.connect(ui.update_controller_status, Qt.ConnectionType.QueuedConnection)
-    
-    ros2_thread.start()
-    main_window.show()
+    package_share_dir = get_package_share_directory('gui_pkg')
+    qml_file_path = os.path.join(package_share_dir, 'qml', 'main.qml')
+
+    engine.load(qml_file_path)
+
+    if not engine.rootObjects():
+        sys.exit(-1)
+
+    ros_timer = QTimer()
+    ros_timer.timeout.connect(lambda: rclpy.spin_once(node, timeout_sec=0.0))
+    ros_timer.start(15)
+
+    joy_monitor_timer = QTimer()
+    joy_monitor_timer.timeout.connect(bridge.check_joystick_timeout)
+    joy_monitor_timer.timeout.connect(bridge.check_rov_timeout)
+    joy_monitor_timer.start(500)
 
     exit_code = app.exec()
 
-    # Cleanup
+    video_provider.cleanup()
     node.destroy_node()
     rclpy.shutdown()
-
-    ros2_thread.quit()
-    ros2_thread.wait()
-
     sys.exit(exit_code)
 
 if __name__ == '__main__':
