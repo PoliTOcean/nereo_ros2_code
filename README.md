@@ -10,7 +10,13 @@ Current stack in the repo scripts is aligned to ROS 2 Humble.
 
 ## Installation (fresh machine)
 
-### 1. Register the custom rosdep sources
+### 1. Install rosbridge
+
+```bash
+sudo apt install ros-humble-rosbridge-suite
+```
+
+### 2. Register the custom rosdep sources
 
 Some dependencies (`PyQt6`, `bluerobotics-ping`) are not in the default rosdep index.
 Register the local override file once after cloning:
@@ -20,7 +26,7 @@ echo "yaml file://$(pwd)/rosdep.yaml" | sudo tee /etc/ros/rosdep/sources.list.d/
 rosdep update
 ```
 
-### 2. Install all dependencies
+### 3. Install all dependencies
 
 ```bash
 # Control station (PC)
@@ -32,7 +38,7 @@ cd ../rpi_ws
 rosdep install --from-paths src --ignore-src -r -y
 ```
 
-### 3. Build
+### 4. Build
 
 ```bash
 cd gui_ws && colcon build && source install/setup.zsh
@@ -53,10 +59,16 @@ cd ../rpi_ws && colcon build && source install/setup.zsh
 
 2. **`joystick_pkg`**
    - Reads joystick input via `sensor_msgs/Joy` and publishes `CommandVelocity`.
-   - Default mode: publishes directly on `/nereo_cmd_vel`.
-   - Controller mode (Share button toggle): publishes on `/nereo_cmd_vel_no_fb` for a separate controller node to process before forwarding.
-   - PS button toggles arm/disarm via `/set_rov_arm_mode` service.
+   - Default mode: publishes on `/nereo_cmd_vel_joy` → forwarded by `safety_node`.
+   - Controller mode (mode button toggle): publishes on `/nereo_cmd_vel_no_fb` → controller node → `safety_node`.
+   - Arm button toggles arm/disarm via `/set_rov_arm_mode` service.
    - D-pad controls pitch/roll trim (incremental, rising-edge only).
+
+3. **`web_pkg`**
+   - HTTP server (port 8080) serving the web controller UI.
+   - `safety_node`: arbitrates commands from physical controller and web interface, publishes on `/nereo_cmd_vel` with priority and timeout rules.
+   - Web controller available at `http://<workstation-ip>:8080`.
+   - ROV simulator available at `http://<workstation-ip>:8080/sim.html`.
 
 ### `rpi_ws` — Raspberry Pi
 
@@ -78,26 +90,40 @@ cd ../rpi_ws && colcon build && source install/setup.zsh
 | `bar_publisher` | `nereo_sensors_pkg` | RPi | Reads MS5837 barometer over I2C, publishes pressure + diagnostics |
 | `sonar_node` | `sonar_pkg` | RPi | Reads Ping1D via serial, publishes distance, confidence, profile |
 | `gui_node` | `gui_pkg` | PC | Main QML dashboard, fuses all telemetry into the GUI |
-| `joy_to_cmd_vel` | `joystick_pkg` | PC | Joystick → `CommandVelocity` (direct or via controller node) |
-| `rov_sim_node` | `gui_pkg` | PC | Full ROV simulator for local testing (see below) |
+| `joy_to_cmd_vel` | `joystick_pkg` | PC | Joystick → `CommandVelocity` on `_joy` or `_no_fb` topic |
+| `safety_node` | `web_pkg` | PC | Arbitrates controller + web commands → `/nereo_cmd_vel` |
+| `web_server_node` | `web_pkg` | PC | Serves web controller UI on port 8080 |
+| `rov_sim_node` | `gui_pkg` | PC | Full ROV simulator for local testing |
 | `sonar_sim_node` | `sonar_pkg` | PC | Sonar simulator publishing synthetic waterfall data |
 
-### Published topics
+### Topic map
 
-| Node | Topic | Type |
-| --- | --- | --- |
-| `imu_publisher` | `imu_data` | `sensor_msgs/Imu` |
-| `imu_publisher` | `imu_diagnostic` | `diagnostic_msgs/DiagnosticArray` |
-| `bar_publisher` | `barometer_pressure` | `sensor_msgs/FluidPressure` |
-| `bar_publisher` | `barometer_temperature` | `sensor_msgs/Temperature` |
-| `bar_publisher` | `barometer_diagnostic` | `diagnostic_msgs/DiagnosticArray` |
-| `sonar_node` / `sonar_sim_node` | `sonar/distance` | `std_msgs/Float32` |
-| `sonar_node` / `sonar_sim_node` | `sonar/confidence` | `std_msgs/Int32` |
-| `sonar_node` / `sonar_sim_node` | `sonar/profile` | `std_msgs/Float32MultiArray` |
-| `joy_to_cmd_vel` | `/nereo_cmd_vel` | `nereo_interfaces/CommandVelocity` (direct mode) |
-| `joy_to_cmd_vel` | `/nereo_cmd_vel_no_fb` | `nereo_interfaces/CommandVelocity` (controller mode) |
-| `joy_to_cmd_vel` | `/joy_control_active` | `std_msgs/Bool` |
-| `rov_sim_node` | `imu_data`, `barometer_pressure`, `joy` | (same as real nodes) |
+| Publisher | Topic | Type | Consumer |
+| --- | --- | --- | --- |
+| `imu_publisher` | `imu_data` | `sensor_msgs/Imu` | `gui_node` |
+| `imu_publisher` | `imu_diagnostic` | `diagnostic_msgs/DiagnosticArray` | — |
+| `bar_publisher` | `barometer_pressure` | `sensor_msgs/FluidPressure` | `gui_node` |
+| `bar_publisher` | `barometer_temperature` | `sensor_msgs/Temperature` | — |
+| `bar_publisher` | `barometer_diagnostic` | `diagnostic_msgs/DiagnosticArray` | — |
+| `sonar_node` / `sonar_sim_node` | `sonar/distance` | `std_msgs/Float32` | `gui_node` |
+| `sonar_node` / `sonar_sim_node` | `sonar/confidence` | `std_msgs/Int32` | `gui_node` |
+| `sonar_node` / `sonar_sim_node` | `sonar/profile` | `std_msgs/Float32MultiArray` | `gui_node` |
+| `joy_to_cmd_vel` | `/nereo_cmd_vel_joy` | `nereo_interfaces/CommandVelocity` | `safety_node` |
+| `joy_to_cmd_vel` | `/nereo_cmd_vel_no_fb` | `nereo_interfaces/CommandVelocity` | controller node / `safety_node` |
+| `joy_to_cmd_vel` | `/joy_control_active` | `std_msgs/Bool` | `gui_node`, web |
+| web client | `/web_cmd_vel` | `nereo_interfaces/CommandVelocity` | `safety_node` |
+| `safety_node` | `/nereo_cmd_vel` | `nereo_interfaces/CommandVelocity` | **ROV firmware** |
+
+### Safety arbitration rules (`safety_node`)
+
+| Condition | Output |
+| --- | --- |
+| Controller active (message < 0.5 s ago) | Controller command forwarded, web ignored |
+| Only web active | Web command forwarded |
+| Web silent for 0–1 s | Last web command held |
+| Web silent for 1–1.5 s | Command ramped to zero |
+| Web silent > 1.5 s | Zero command sent |
+| No source active | Zero command sent |
 
 ### Mermaid diagram — workspace architecture
 
@@ -113,30 +139,36 @@ graph LR
    subgraph CTRL[gui_ws - Control Station]
       GUI[gui_node\nRosBridge + SonarBridge]
       JOY[joy_to_cmd_vel]
+      SAFETY[safety_node]
+      WEB[web_server_node\nport 8080]
    end
 
    subgraph SIM[Simulators - local testing]
-      ROVSIM[rov_sim_node\nIMU + baro + joy + cameras]
+      ROVSIM[rov_sim_node]
       SONARSIM[sonar_sim_node]
    end
 
+   PHONE[Phone / tablet\nbrowser]
+
    IMU -.->|imu_data| GUI
    BAR -.->|barometer_pressure| GUI
-   SONAR -.->|sonar/distance\nsonar/confidence\nsonar/profile| GUI
+   SONAR -.->|sonar/*| GUI
    CAM -.->|RTP/UDP 5001-5003| GUI
 
    ROVSIM ==>|imu_data, barometer_pressure, joy| GUI
    SONARSIM ==>|sonar/*| GUI
 
-   JOY -->|nereo_cmd_vel\ndirect mode| ROV[(ROV control stack)]
-   JOY -.->|nereo_cmd_vel_no_fb\ncontroller mode| CTRL_NODE[controller node]
-   CTRL_NODE -->|nereo_cmd_vel| ROV
+   JOY -->|nereo_cmd_vel_joy| SAFETY
+   JOY -.->|nereo_cmd_vel_no_fb\ncontroller mode| SAFETY
+   PHONE -->|web_cmd_vel\nvia rosbridge:9090| SAFETY
+   WEB -->|serves UI| PHONE
+   SAFETY -->|nereo_cmd_vel| ROV[(ROV firmware\nmicroROS)]
    GUI -->|SetBool /set_rov_arm_mode| ROV
 ```
 
 ## Running on the workstation (with ROV)
 
-A single launch file starts everything needed on the operator PC: joystick driver, command translator, and GUI.
+A single launch file starts everything: joystick driver, command translator, GUI, safety arbiter, rosbridge WebSocket, and web controller server.
 
 ```bash
 source gui_ws/install/setup.zsh
@@ -153,31 +185,42 @@ ros2 launch gui_pkg workstation.launch.py btn_arm:=10 btn_mode:=8
 ros2 launch gui_pkg workstation.launch.py device:=/dev/input/js1
 ```
 
-### DS5 controller mapping
+### Physical controller mapping
 
-| Input | Action | DS5 | Xbox One S |
+| Input | Action | Xbox One S (default) | DS5 |
 | --- | --- | --- | --- |
 | Left stick Y/X | Surge / Sway | — | — |
 | Right stick Y/X | Heave / Yaw | — | — |
 | D-pad up/down | Pitch trim | — | — |
 | D-pad left/right | Roll trim | — | — |
-| Arm/Disarm | Toggle arm | Xbox (btn 8) **default** | PS (btn 10) |
-| Mode toggle | Direct ↔ Controller | View (btn 6) **default** | Share (btn 8) |
+| Arm/Disarm | Toggle arm | Xbox (btn 8) | PS (btn 10) |
+| Mode toggle | Direct ↔ Controller | View (btn 6) | Share (btn 8) |
 
-**Direct mode** (default, 👮 red in GUI): commands go to `/nereo_cmd_vel` → ROV directly.
+**Direct mode** (👮 red in GUI): commands go to `/nereo_cmd_vel_joy` → `safety_node` → ROV.
 
-**Controller mode** (Share pressed, 👮 blue in GUI): commands go to `/nereo_cmd_vel_no_fb` → controller node → ROV.
+**Controller mode** (👮 blue in GUI): commands go to `/nereo_cmd_vel_no_fb` → controller node → `safety_node` → ROV.
+
+### Web controller (phone / tablet)
+
+Find the workstation IP:
+```bash
+hostname -I | awk '{print $1}'
+```
+
+Open from any device on the same network:
+- **Controller**: `http://<IP>:8080`
+- **ROV simulator**: `http://<IP>:8080/sim.html`
+
+The web controller publishes on `/web_cmd_vel`. The `safety_node` gives priority to the physical controller when both are active.
 
 ---
 
 ## Local testing (without ROV hardware)
 
-A single command launches the full ROV simulator: IMU, barometer, joystick heartbeat, arm/disarm service, and 3 GStreamer test video streams.
-
 ### 1. Build both workspaces
 
 ```bash
-cd nereo_ros2_code/gui_ws && colcon build && source install/setup.zsh
+cd gui_ws && colcon build && source install/setup.zsh
 cd ../rpi_ws && colcon build && source install/setup.zsh
 ```
 
@@ -199,17 +242,18 @@ ros2 run sonar_pkg sonar_sim_node
 
 Simulates a sinusoidally oscillating bottom (2–8 m), gaussian echo profile, and a periodic confidence drop to test the threshold filter in the Sonar Viewer.
 
-### 4. Launch GUI + joystick (Terminal 3)
+### 4. Launch workstation stack (Terminal 3)
 
 ```bash
 ros2 launch gui_pkg workstation.launch.py
 ```
 
-Open the **SONAR** button to see the live waterfall and A-scan. The **Control Panel** arm button and all header badges are functional via the simulator.
+Open the **SONAR** button to see the live waterfall and A-scan. Open `http://localhost:8080` for the web controller and `http://localhost:8080/sim.html` for the top-down ROV simulator.
 
 ### Manual test scripts
 
-- `gui_ws/src/gui_pkg/test/cam_test.sh` — standalone script to launch the 3 GStreamer test streams independently (useful to test video boxes in isolation).
+- `gui_ws/src/gui_pkg/test/cam_test.sh` — launches 3 GStreamer test streams independently.
+- `ros2 run joystick_pkg rov_cmd_monitor` — terminal dashboard showing live 6-DOF command vector.
 
 ---
 

@@ -1,4 +1,5 @@
 import math
+import random
 import time
 import rclpy
 from rclpy.node import Node
@@ -80,7 +81,6 @@ class SonarSimNode(Node):
         sigma = n * 0.03
         centre = (distance_m - self._scan_start) / depth_step
 
-        import random
         profile = []
         for i in range(n):
             echo  = 220 * math.exp(-0.5 * ((i - centre) / sigma) ** 2)

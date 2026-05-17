@@ -41,4 +41,20 @@ def generate_launch_description():
             executable='gui_node',
             name='gui_node',
         ),
+        Node(
+            package='rosbridge_server',
+            executable='rosbridge_websocket',
+            name='rosbridge_websocket',
+            parameters=[{'port': 9090}],
+        ),
+        Node(
+            package='web_pkg',
+            executable='web_server_node',
+            name='web_server_node',
+        ),
+        Node(
+            package='web_pkg',
+            executable='safety_node',
+            name='safety_node',
+        ),
     ])

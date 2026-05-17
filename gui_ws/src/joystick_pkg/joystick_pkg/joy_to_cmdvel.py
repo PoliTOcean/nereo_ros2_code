@@ -75,7 +75,7 @@ class JoyToCmdVelNode(Node):
         self._latest_joy = None
         self._last_joy_stamp = None
 
-        self._pub_direct     = self.create_publisher(CommandVelocity, '/nereo_cmd_vel',       10)
+        self._pub_direct     = self.create_publisher(CommandVelocity, '/nereo_cmd_vel_joy',   10)
         self._pub_controller = self.create_publisher(CommandVelocity, '/nereo_cmd_vel_no_fb', 10)
         self._pub_active     = self.create_publisher(Bool, '/joy_control_active', 10)
         self._arm_client     = self.create_client(SetBool, '/set_rov_arm_mode')
@@ -83,7 +83,7 @@ class JoyToCmdVelNode(Node):
         self.create_subscription(Joy, 'joy', self._joy_callback, 10)
         self.create_timer(1 / 20, self._publish)
 
-        self.get_logger().info('joy_to_cmd_vel ready — mode DIRECT (/nereo_cmd_vel) | Share to toggle controller mode')
+        self.get_logger().info('joy_to_cmd_vel ready — mode DIRECT (/nereo_cmd_vel_joy) | Share to toggle controller mode')
 
     # ── joy subscriber ────────────────────────────────────────────────────
 
@@ -105,7 +105,7 @@ class JoyToCmdVelNode(Node):
             state_msg = Bool()
             state_msg.data = self._controller_mode
             self._pub_active.publish(state_msg)
-            mode = 'CONTROLLER (/nereo_cmd_vel_no_fb)' if self._controller_mode else 'DIRECT (/nereo_cmd_vel)'
+            mode = 'CONTROLLER (/nereo_cmd_vel_no_fb)' if self._controller_mode else 'DIRECT (/nereo_cmd_vel_joy)'
             self.get_logger().info(f'Mode → {mode}')
 
         # Arm toggle
@@ -119,12 +119,6 @@ class JoyToCmdVelNode(Node):
         if not self._arm_client.service_is_ready():
             self.get_logger().warn('Arm service not ready')
             return
-        # We don't track arm state here — the GUI owns that display.
-        # We request a toggle: send True if service responds with current=False.
-        # Simpler: always send True; a second press sends False via the GUI state.
-        # Best approach: read current state from parameter or just alternate.
-        # Since the GUI tracks _rov_armed, we can't read it here directly.
-        # We send True on odd presses and False on even presses via a local flag.
         self._armed = not getattr(self, '_armed', False)
         req = SetBool.Request()
         req.data = self._armed
@@ -169,19 +163,21 @@ class JoyToCmdVelNode(Node):
             and (now - self._last_joy_stamp) < self._timeout
         )
 
+        if not joy_active:
+            return
+
         msg = CommandVelocity()
-        if joy_active:
-            axes = self._latest_joy.axes
+        axes = self._latest_joy.axes
 
-            def a(i: int) -> float:
-                return self._dz(axes[i]) if i < len(axes) else 0.0
+        def a(i: int) -> float:
+            return self._dz(axes[i]) if i < len(axes) else 0.0
 
-            msg.cmd_vel[0] = a(AXIS_LEFT_Y)
-            msg.cmd_vel[1] = -a(AXIS_LEFT_X)
-            msg.cmd_vel[2] = a(AXIS_RIGHT_Y)
-            msg.cmd_vel[3] = self._pitch
-            msg.cmd_vel[4] = self._roll
-            msg.cmd_vel[5] = -a(AXIS_RIGHT_X)
+        msg.cmd_vel[0] = a(AXIS_LEFT_Y)
+        msg.cmd_vel[1] = -a(AXIS_LEFT_X)
+        msg.cmd_vel[2] = a(AXIS_RIGHT_Y)
+        msg.cmd_vel[3] = self._pitch
+        msg.cmd_vel[4] = self._roll
+        msg.cmd_vel[5] = -a(AXIS_RIGHT_X)
 
         if self._controller_mode:
             self._pub_controller.publish(msg)
