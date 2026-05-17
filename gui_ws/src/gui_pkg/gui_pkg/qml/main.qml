@@ -21,9 +21,6 @@ ApplicationWindow {
     property real rovYaw: RosBridge.rovYaw
     property real rovDepth: RosBridge.rovDepth
 
-    property real sonarAltimeter: 2.35
-    property real sonarEchosound: 8.90
-    property int sonarConfidence: 82
 
     property string mainFeedSource: "MAIN CAMERA"
     property string mainFeedId: "main_cam"          
@@ -77,8 +74,6 @@ ApplicationWindow {
 
     SonarWindow {
         id: sonarWindow
-        sonarAltimeter: window.sonarAltimeter
-        sonarConfidence: window.sonarConfidence
     }
 
     ControlPanelWindow {

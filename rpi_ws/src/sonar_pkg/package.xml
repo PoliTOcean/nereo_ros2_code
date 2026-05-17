@@ -1,19 +1,14 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>gui_pkg</name>
+  <name>sonar_pkg</name>
   <version>1.0.0</version>
-  <description>GUI for PoliTOcean ROV</description>
+  <description>Ping1D sonar driver node for PoliTOcean Nereo ROV</description>
   <maintainer email="davidecola16@gmail.com">Davide Colabella</maintainer>
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
-  <depend>sensor_msgs</depend>
-  <depend>python3-pyqt6</depend>
-  <depend>python3-numpy</depend>
-  <depend>python3-matplotlib</depend>
-  <depend>tf_transformations</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
