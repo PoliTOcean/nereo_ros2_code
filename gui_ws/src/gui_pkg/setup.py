@@ -12,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/launch', glob('launch/*.py')),
         ('share/' + package_name + '/images', glob('gui_pkg/images/*')),
         ('share/' + package_name + '/qml', glob('gui_pkg/qml/*.qml')),
         ('share/' + package_name + '/qml/components', glob('gui_pkg/qml/components/*.qml')),

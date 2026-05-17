@@ -4,13 +4,14 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 # Button presets (ros2 run joy joy_node, Linux hidraw driver)
-#   DS5:       btn_arm=10 (PS)     btn_mode=8 (Share)
-#   Xbox One S: btn_arm=8 (Xbox)  btn_mode=6 (View)
+#   DS5:        btn_arm=10 (PS)    btn_mode=8 (Share)
+#   Xbox One S: btn_arm=8  (Xbox)  btn_mode=6 (View)
 
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument('device',    default_value='/dev/input/js0'),
+        DeclareLaunchArgument('device',    default_value='/dev/input/js0',
+                              description='Joystick device path'),
         DeclareLaunchArgument('deadzone',  default_value='0.05'),
         DeclareLaunchArgument('max_steps', default_value='10'),
         DeclareLaunchArgument('btn_arm',   default_value='8',
@@ -34,5 +35,10 @@ def generate_launch_description():
                 'btn_arm':   LaunchConfiguration('btn_arm'),
                 'btn_mode':  LaunchConfiguration('btn_mode'),
             }],
+        ),
+        Node(
+            package='gui_pkg',
+            executable='gui_node',
+            name='gui_node',
         ),
     ])

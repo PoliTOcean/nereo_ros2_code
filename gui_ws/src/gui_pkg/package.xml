@@ -8,6 +8,7 @@
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
+  <depend>launch_ros</depend>
   <depend>std_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>python3-pyqt6</depend>

@@ -26,7 +26,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from tf_transformations import euler_from_quaternion
 from sensor_msgs.msg import Imu, FluidPressure, Joy
-from std_msgs.msg import Float32, Int32, Float32MultiArray
+from std_msgs.msg import Float32, Int32, Float32MultiArray, Bool
 from std_srvs.srv import SetBool
 from . import PoliciesUtils
 
@@ -320,9 +320,10 @@ class ROSQmlBridge(QObject):
     pitch_changed = pyqtSignal(float)
     yaw_changed = pyqtSignal(float)
     depth_changed = pyqtSignal(float)
-    joy_status_changed = pyqtSignal(bool)
-    rov_armed_changed = pyqtSignal(bool)
-    rov_connected_changed = pyqtSignal(bool)
+    joy_status_changed     = pyqtSignal(bool)
+    rov_armed_changed      = pyqtSignal(bool)
+    rov_connected_changed  = pyqtSignal(bool)
+    control_active_changed = pyqtSignal(bool)
 
     def __init__(self, node: Node):
         super().__init__()
@@ -333,8 +334,9 @@ class ROSQmlBridge(QObject):
         self._yaw = 0.0
         self._depth = 0.0
         self._joystick_connected = False
-        self._rov_armed = False
-        self._rov_connected = False
+        self._rov_armed          = False
+        self._rov_connected      = False
+        self._control_active     = False
         
         self.last_joy_time = None
         self.last_imu_time = None 
@@ -347,6 +349,8 @@ class ROSQmlBridge(QObject):
             FluidPressure, 'barometer_pressure', self.barometer_callback, PoliciesUtils.sensor_qos)
         self.sub_joystick = self.node.create_subscription(
             Joy, 'joy', self.joystick_callback, PoliciesUtils.sensor_qos)
+        self.node.create_subscription(
+            Bool, '/joy_control_active', self.control_active_callback, 10)
 
     @pyqtProperty(float, notify=roll_changed)
     def rovRoll(self): return self._roll
@@ -368,6 +372,9 @@ class ROSQmlBridge(QObject):
 
     @pyqtProperty(bool, notify=rov_connected_changed)
     def rovConnected(self): return self._rov_connected
+
+    @pyqtProperty(bool, notify=control_active_changed)
+    def controlActive(self): return self._control_active
 
     def imu_callback(self, msg: Imu):
         self.last_imu_time = self.node.get_clock().now()
@@ -392,14 +399,15 @@ class ROSQmlBridge(QObject):
         self._depth = (msg.fluid_pressure - 101325) / 9806.65
         self.depth_changed.emit(self._depth)
 
+    def control_active_callback(self, msg: Bool):
+        self._control_active = msg.data
+        self.control_active_changed.emit(self._control_active)
+
     def joystick_callback(self, msg: Joy):
         self.last_joy_time = self.node.get_clock().now()
         if not self._joystick_connected:
             self._joystick_connected = True
             self.joy_status_changed.emit(True)
-        
-        if len(msg.buttons) > 6 and msg.buttons[6] == 1:
-            self.sendArmCommand(not self._rov_armed)
 
     def check_joystick_timeout(self):
         if self.last_joy_time is None:

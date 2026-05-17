@@ -15,6 +15,7 @@ ApplicationWindow {
     property bool rovConnected: RosBridge.rovConnected
     property bool joystickConnected: RosBridge.joystickConnected
     property bool rovArmed: RosBridge.rovArmed
+    property bool controlActive: RosBridge.controlActive
 
     property real rovRoll: RosBridge.rovRoll
     property real rovPitch: RosBridge.rovPitch
@@ -70,6 +71,7 @@ ApplicationWindow {
         rovConnected: window.rovConnected
         joystickConnected: window.joystickConnected
         rovArmed: window.rovArmed
+        controlActive: window.controlActive
     }
 
     SonarWindow {

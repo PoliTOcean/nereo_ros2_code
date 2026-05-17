@@ -52,7 +52,11 @@ cd ../rpi_ws && colcon build && source install/setup.zsh
    - Dispatches async `/set_rov_arm_mode` service calls with thread-safe Qt signal delivery.
 
 2. **`joystick_pkg`**
-   - Reads joystick input and publishes `CommandVelocity` on `/nereo_cmd_vel`.
+   - Reads joystick input via `sensor_msgs/Joy` and publishes `CommandVelocity`.
+   - Default mode: publishes directly on `/nereo_cmd_vel`.
+   - Controller mode (Share button toggle): publishes on `/nereo_cmd_vel_no_fb` for a separate controller node to process before forwarding.
+   - PS button toggles arm/disarm via `/set_rov_arm_mode` service.
+   - D-pad controls pitch/roll trim (incremental, rising-edge only).
 
 ### `rpi_ws` — Raspberry Pi
 
@@ -74,7 +78,7 @@ cd ../rpi_ws && colcon build && source install/setup.zsh
 | `bar_publisher` | `nereo_sensors_pkg` | RPi | Reads MS5837 barometer over I2C, publishes pressure + diagnostics |
 | `sonar_node` | `sonar_pkg` | RPi | Reads Ping1D via serial, publishes distance, confidence, profile |
 | `gui_node` | `gui_pkg` | PC | Main QML dashboard, fuses all telemetry into the GUI |
-| `joy_to_cmd_vel` | `joystick_pkg` | PC | Joystick → `CommandVelocity` |
+| `joy_to_cmd_vel` | `joystick_pkg` | PC | Joystick → `CommandVelocity` (direct or via controller node) |
 | `rov_sim_node` | `gui_pkg` | PC | Full ROV simulator for local testing (see below) |
 | `sonar_sim_node` | `sonar_pkg` | PC | Sonar simulator publishing synthetic waterfall data |
 
@@ -90,7 +94,9 @@ cd ../rpi_ws && colcon build && source install/setup.zsh
 | `sonar_node` / `sonar_sim_node` | `sonar/distance` | `std_msgs/Float32` |
 | `sonar_node` / `sonar_sim_node` | `sonar/confidence` | `std_msgs/Int32` |
 | `sonar_node` / `sonar_sim_node` | `sonar/profile` | `std_msgs/Float32MultiArray` |
-| `joy_to_cmd_vel` | `/nereo_cmd_vel` | `nereo_interfaces/CommandVelocity` |
+| `joy_to_cmd_vel` | `/nereo_cmd_vel` | `nereo_interfaces/CommandVelocity` (direct mode) |
+| `joy_to_cmd_vel` | `/nereo_cmd_vel_no_fb` | `nereo_interfaces/CommandVelocity` (controller mode) |
+| `joy_to_cmd_vel` | `/joy_control_active` | `std_msgs/Bool` |
 | `rov_sim_node` | `imu_data`, `barometer_pressure`, `joy` | (same as real nodes) |
 
 ### Mermaid diagram — workspace architecture
@@ -122,9 +128,47 @@ graph LR
    ROVSIM ==>|imu_data, barometer_pressure, joy| GUI
    SONARSIM ==>|sonar/*| GUI
 
-   JOY -->|nereo_cmd_vel| ROV[(ROV control stack)]
+   JOY -->|nereo_cmd_vel\ndirect mode| ROV[(ROV control stack)]
+   JOY -.->|nereo_cmd_vel_no_fb\ncontroller mode| CTRL_NODE[controller node]
+   CTRL_NODE -->|nereo_cmd_vel| ROV
    GUI -->|SetBool /set_rov_arm_mode| ROV
 ```
+
+## Running on the workstation (with ROV)
+
+A single launch file starts everything needed on the operator PC: joystick driver, command translator, and GUI.
+
+```bash
+source gui_ws/install/setup.zsh
+ros2 launch gui_pkg workstation.launch.py
+```
+
+Optional arguments:
+
+```bash
+# DS5 (different button indices)
+ros2 launch gui_pkg workstation.launch.py btn_arm:=10 btn_mode:=8
+
+# Different joystick device
+ros2 launch gui_pkg workstation.launch.py device:=/dev/input/js1
+```
+
+### DS5 controller mapping
+
+| Input | Action | DS5 | Xbox One S |
+| --- | --- | --- | --- |
+| Left stick Y/X | Surge / Sway | — | — |
+| Right stick Y/X | Heave / Yaw | — | — |
+| D-pad up/down | Pitch trim | — | — |
+| D-pad left/right | Roll trim | — | — |
+| Arm/Disarm | Toggle arm | Xbox (btn 8) **default** | PS (btn 10) |
+| Mode toggle | Direct ↔ Controller | View (btn 6) **default** | Share (btn 8) |
+
+**Direct mode** (default, 👮 red in GUI): commands go to `/nereo_cmd_vel` → ROV directly.
+
+**Controller mode** (Share pressed, 👮 blue in GUI): commands go to `/nereo_cmd_vel_no_fb` → controller node → ROV.
+
+---
 
 ## Local testing (without ROV hardware)
 
@@ -155,13 +199,13 @@ ros2 run sonar_pkg sonar_sim_node
 
 Simulates a sinusoidally oscillating bottom (2–8 m), gaussian echo profile, and a periodic confidence drop to test the threshold filter in the Sonar Viewer.
 
-### 4. Launch the GUI (Terminal 3)
+### 4. Launch GUI + joystick (Terminal 3)
 
 ```bash
-ros2 run gui_pkg gui_node
+ros2 launch gui_pkg workstation.launch.py
 ```
 
-Open the **SONAR** button to see the live waterfall and A-scan. The **Control Panel** arm button and joystick/ROV connection badges are all functional via the simulator.
+Open the **SONAR** button to see the live waterfall and A-scan. The **Control Panel** arm button and all header badges are functional via the simulator.
 
 ### Manual test scripts
 
@@ -177,13 +221,11 @@ Inside `unit_tests`, you can find subdirectories containing CMake projects used 
 
 1. Move into a specific test folder, for example `unit_tests/my_unit_test`.
 2. Configure and build:
-
-   ```bash
-   cmake .
-   make
-   ```
+    ```
+    cmake .
+    make
+    ```
 3. Run the produced executable (same name as the folder):
-
-   ```bash
+   ```
    ./my_unit_test
    ```

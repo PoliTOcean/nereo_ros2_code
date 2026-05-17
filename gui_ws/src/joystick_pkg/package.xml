@@ -9,6 +9,7 @@
 
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>nereo_interfaces</depend>
 
   <exec_depend>ros-humble-joy</exec_depend>
