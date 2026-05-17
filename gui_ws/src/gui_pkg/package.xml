@@ -13,6 +13,7 @@
   <depend>python3-pyqt6</depend>
   <depend>python3-numpy</depend>
   <depend>python3-matplotlib</depend>
+  <depend>python3-gi</depend>
   <depend>tf_transformations</depend>
 
   <test_depend>ament_copyright</test_depend>

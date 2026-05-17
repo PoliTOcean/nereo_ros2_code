@@ -8,6 +8,39 @@ The project is organized in two ROS 2 workspaces:
 
 Current stack in the repo scripts is aligned to ROS 2 Humble.
 
+## Installation (fresh machine)
+
+### 1. Register the custom rosdep sources
+
+Some dependencies (`PyQt6`, `bluerobotics-ping`) are not in the default rosdep index.
+Register the local override file once after cloning:
+
+```bash
+echo "yaml file://$(pwd)/rosdep.yaml" | sudo tee /etc/ros/rosdep/sources.list.d/nereo.list
+rosdep update
+```
+
+### 2. Install all dependencies
+
+```bash
+# Control station (PC)
+cd gui_ws
+rosdep install --from-paths src --ignore-src -r -y
+
+# Raspberry Pi
+cd ../rpi_ws
+rosdep install --from-paths src --ignore-src -r -y
+```
+
+### 3. Build
+
+```bash
+cd gui_ws && colcon build && source install/setup.zsh
+cd ../rpi_ws && colcon build && source install/setup.zsh
+```
+
+---
+
 ## ROS 2 packages
 
 ### `gui_ws` — Control station
@@ -144,11 +177,13 @@ Inside `unit_tests`, you can find subdirectories containing CMake projects used 
 
 1. Move into a specific test folder, for example `unit_tests/my_unit_test`.
 2. Configure and build:
-    ```
-    cmake .
-    make
-    ```
-3. Run the produced executable (same name as the folder):
+
+   ```bash
+   cmake .
+   make
    ```
+3. Run the produced executable (same name as the folder):
+
+   ```bash
    ./my_unit_test
    ```

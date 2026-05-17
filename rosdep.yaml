@@ -1,0 +1,11 @@
+python3-pyqt6:
+  ubuntu:
+    pip:
+      packages:
+        - PyQt6
+
+python3-brping:
+  ubuntu:
+    pip:
+      packages:
+        - bluerobotics-ping
