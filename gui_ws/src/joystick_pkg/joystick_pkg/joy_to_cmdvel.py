@@ -3,7 +3,6 @@ from rclpy.node import Node
 from rclpy.duration import Duration
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Bool
-from std_srvs.srv import SetBool
 from nereo_interfaces.msg import CommandVelocity
 
 # ── Axis map — identical for DS5 and Xbox One S with joy_node ─────────────
@@ -78,8 +77,10 @@ class JoyToCmdVelNode(Node):
         self._pub_direct     = self.create_publisher(CommandVelocity, '/nereo_cmd_vel_joy',   10)
         self._pub_controller = self.create_publisher(CommandVelocity, '/nereo_cmd_vel_no_fb', 10)
         self._pub_active     = self.create_publisher(Bool, '/joy_control_active', 10)
-        self._arm_client     = self.create_client(SetBool, '/set_rov_arm_mode')
+        self._arm_pub        = self.create_publisher(Bool, '/set_arm_mode', 10)
 
+        self._armed = False
+        self.create_subscription(Bool, '/rov_armed', self._rov_armed_callback, 10)
         self.create_subscription(Joy, 'joy', self._joy_callback, 10)
         self.create_timer(1 / 20, self._publish)
 
@@ -115,25 +116,15 @@ class JoyToCmdVelNode(Node):
         self._prev_btn_enable = msg.buttons[self._btn_mode]
         self._prev_btn_arm    = msg.buttons[self._btn_arm]
 
-    def _send_arm_command(self) -> None:
-        if not self._arm_client.service_is_ready():
-            self.get_logger().warn('Arm service not ready')
-            return
-        self._armed = not getattr(self, '_armed', False)
-        req = SetBool.Request()
-        req.data = self._armed
-        future = self._arm_client.call_async(req)
-        future.add_done_callback(self._arm_response_cb)
-        self.get_logger().info(f'Requesting {"ARM" if self._armed else "DISARM"}')
+    def _rov_armed_callback(self, msg: Bool) -> None:
+        self._armed = msg.data
 
-    def _arm_response_cb(self, future) -> None:
-        try:
-            if not future.result().success:
-                self._armed = not self._armed   # revert on failure
-                self.get_logger().warn('Arm service returned failure')
-        except Exception as e:
-            self._armed = not self._armed
-            self.get_logger().warn(f'Arm service error: {e}')
+    def _send_arm_command(self) -> None:
+        target = not self._armed
+        msg = Bool()
+        msg.data = target
+        self._arm_pub.publish(msg)
+        self.get_logger().info(f'Requesting {"ARM" if target else "DISARM"}')
 
     # ── D-pad pitch/roll accumulator ──────────────────────────────────────
 

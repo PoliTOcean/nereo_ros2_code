@@ -175,9 +175,12 @@ const cmdVelTopic = new ROSLIB.Topic({
   ros, name: '/web_cmd_vel', messageType: 'nereo_interfaces/CommandVelocity',
   queue_size: 1, latch: false
 });
-const armService = new ROSLIB.Service({
-  ros, name: '/set_rov_arm_mode', serviceType: 'std_srvs/SetBool'
+const armTopic = new ROSLIB.Topic({
+  ros, name: '/set_arm_mode', messageType: 'std_msgs/Bool'
 });
+
+new ROSLIB.Topic({ ros, name: '/rov_armed', messageType: 'std_msgs/Bool' })
+  .subscribe(msg => { armed = msg.data; updateArmUI(); });
 const pubControlActive = new ROSLIB.Topic({
   ros, name: '/joy_control_active', messageType: 'std_msgs/Bool'
 });
@@ -249,9 +252,7 @@ joyR.on('end', () => { heave = 0; yaw = 0; });
 
 // ── Arm button ─────────────────────────────────────────────────────────────
 document.getElementById('btn-arm').addEventListener('click', () => {
-  armService.callService(new ROSLIB.ServiceRequest({ data: !armed }), res => {
-    if (res && res.success) { armed = !armed; updateArmUI(); }
-  });
+  armTopic.publish(new ROSLIB.Message({ data: !armed }));
 });
 
 function updateArmUI() {

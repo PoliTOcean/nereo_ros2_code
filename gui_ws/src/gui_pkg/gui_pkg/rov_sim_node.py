@@ -5,7 +5,7 @@ import subprocess
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, FluidPressure, Joy
-from std_srvs.srv import SetBool
+from std_msgs.msg import Bool
 
 CAM_PIPELINES = [
     ('Main Camera', 5001, 'smpte',  30),
@@ -23,7 +23,8 @@ class RovSimNode(Node):
         self._imu_pub  = self.create_publisher(Imu,           'imu_data',            10)
         self._baro_pub = self.create_publisher(FluidPressure, 'barometer_pressure',   10)
         self._joy_pub  = self.create_publisher(Joy,           'joy',                  10)
-        self.create_service(SetBool, '/set_rov_arm_mode', self._handle_arm)
+        self._armed_pub = self.create_publisher(Bool, '/rov_armed', 10)
+        self.create_subscription(Bool, '/set_arm_mode', self._handle_arm, 10)
 
         self._armed = False
         self._t     = 0.0
@@ -60,14 +61,14 @@ class RovSimNode(Node):
             proc.terminate()
         self._cam_procs.clear()
 
-    # ── arm service ───────────────────────────────────────────────────────
+    # ── arm topic ─────────────────────────────────────────────────────────
 
-    def _handle_arm(self, request, response):
-        self._armed = request.data
+    def _handle_arm(self, msg: Bool):
+        self._armed = msg.data
         self.get_logger().info(f'ARM → {"ARMED" if self._armed else "DISARMED"}')
-        response.success = True
-        response.message = f'ROV {"ARMED" if self._armed else "DISARMED"}'
-        return response
+        out = Bool()
+        out.data = self._armed
+        self._armed_pub.publish(out)
 
     # ── telemetry tick ────────────────────────────────────────────────────
 
@@ -79,6 +80,10 @@ class RovSimNode(Node):
         joy.axes   = [0.0, 0.0, 0.0, 0.0]
         joy.buttons = [0, 0, 0, 0, 0, 0, 0, 0]
         self._joy_pub.publish(joy)
+
+        armed_msg = Bool()
+        armed_msg.data = self._armed
+        self._armed_pub.publish(armed_msg)
 
         # IMU
         roll  = math.sin(self._t) * 0.15

@@ -1,5 +1,4 @@
 src/.vscode
-src/nereo_interfaces/.vscode
 src/nereo_pkg/.vscode
 .vscode
 
@@ -31,5 +30,3 @@ unit_tests/barometer_unit_test/libiic.a
 # Python bytecode cache directories
 __pycache__/
 **/__pycache__/
-
-nereo_interfaces/

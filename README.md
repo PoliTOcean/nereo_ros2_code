@@ -10,6 +10,20 @@ Current stack in the repo scripts is aligned to ROS 2 Humble.
 
 ## Installation (fresh machine)
 
+### 0. Clone the repo
+
+`nereo_interfaces` is a git submodule. Clone with:
+
+```bash
+git clone --recurse-submodules https://github.com/PoliTOcean/nereo_ros2_code.git
+```
+
+If you already cloned without `--recurse-submodules`:
+
+```bash
+git submodule update --init
+```
+
 ### 1. Install rosbridge
 
 ```bash
@@ -55,13 +69,13 @@ cd ../rpi_ws && colcon build && source install/setup.zsh
    - QML/QtQuick6 GUI with live video (3× GStreamer H264/UDP), IMU orientation widget, depth, sonar viewer.
    - `RosBridge`: subscribes to telemetry topics, exposes data to QML via PyQt6 signals.
    - `SonarBridge` + `SonarRenderer`: subscribes to sonar topics, renders waterfall and A-scan via matplotlib into `QQuickImageProvider`.
-   - Dispatches async `/set_rov_arm_mode` service calls with thread-safe Qt signal delivery.
+   - ROV connection status driven by `/rov_armed` heartbeat (published every firmware cycle).
 
 2. **`joystick_pkg`**
    - Reads joystick input via `sensor_msgs/Joy` and publishes `CommandVelocity`.
    - Default mode: publishes on `/nereo_cmd_vel_joy` → forwarded by `safety_node`.
    - Controller mode (mode button toggle): publishes on `/nereo_cmd_vel_no_fb` → controller node → `safety_node`.
-   - Arm button toggles arm/disarm via `/set_rov_arm_mode` service.
+   - Arm button publishes on `/set_arm_mode`; arm state is tracked from `/rov_armed` feedback.
    - D-pad controls pitch/roll trim (incremental, rising-edge only).
 
 3. **`web_pkg`**
@@ -111,8 +125,11 @@ cd ../rpi_ws && colcon build && source install/setup.zsh
 | `joy_to_cmd_vel` | `/nereo_cmd_vel_joy` | `nereo_interfaces/CommandVelocity` | `safety_node` |
 | `joy_to_cmd_vel` | `/nereo_cmd_vel_no_fb` | `nereo_interfaces/CommandVelocity` | controller node / `safety_node` |
 | `joy_to_cmd_vel` | `/joy_control_active` | `std_msgs/Bool` | `gui_node`, web |
+| `joy_to_cmd_vel` / web client | `/set_arm_mode` | `std_msgs/Bool` | **ROV firmware** |
 | web client | `/web_cmd_vel` | `nereo_interfaces/CommandVelocity` | `safety_node` |
 | `safety_node` | `/nereo_cmd_vel` | `nereo_interfaces/CommandVelocity` | **ROV firmware** |
+| **ROV firmware** | `/rov_armed` | `std_msgs/Bool` | `gui_node`, `joy_to_cmd_vel`, web |
+| **ROV firmware** | `/thruster_status` | `nereo_interfaces/ThrusterStatuses` | — |
 
 ### Safety arbitration rules (`safety_node`)
 
@@ -163,7 +180,10 @@ graph LR
    PHONE -->|web_cmd_vel\nvia rosbridge:9090| SAFETY
    WEB -->|serves UI| PHONE
    SAFETY -->|nereo_cmd_vel| ROV[(ROV firmware\nmicroROS)]
-   GUI -->|SetBool /set_rov_arm_mode| ROV
+   JOY -->|set_arm_mode| ROV
+   PHONE -->|set_arm_mode\nvia rosbridge:9090| ROV
+   ROV -->|rov_armed| GUI
+   ROV -->|rov_armed| JOY
 ```
 
 ## Running on the workstation (with ROV)
@@ -227,7 +247,7 @@ cd ../rpi_ws && colcon build && source install/setup.zsh
 ### 2. Launch the full simulator (Terminal 1)
 
 ```bash
-# IMU + barometer + joystick + arm service + 3 GStreamer test cameras
+# IMU + barometer + joystick + arm topic + 3 GStreamer test cameras
 ros2 run gui_pkg rov_sim_node
 
 # Disable cameras if GStreamer is not available

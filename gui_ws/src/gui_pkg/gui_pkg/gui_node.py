@@ -27,7 +27,6 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from tf_transformations import euler_from_quaternion
 from sensor_msgs.msg import Imu, FluidPressure, Joy
 from std_msgs.msg import Float32, Int32, Float32MultiArray, Bool
-from std_srvs.srv import SetBool
 from . import PoliciesUtils
 
 
@@ -339,10 +338,12 @@ class ROSQmlBridge(QObject):
         self._control_active     = False
         
         self.last_joy_time = None
-        self.last_imu_time = None 
+        self.last_rov_armed_time = None
 
-        self.arm_client = self.node.create_client(SetBool, '/set_rov_arm_mode')
-        
+        self.arm_pub = self.node.create_publisher(Bool, '/set_arm_mode', 10)
+        self.node.create_subscription(
+            Bool, '/rov_armed', self.rov_armed_callback, 10)
+
         self.sub_imu = self.node.create_subscription(
             Imu, 'imu_data', self.imu_callback, PoliciesUtils.sensor_qos)
         self.sub_barometer = self.node.create_subscription(
@@ -377,11 +378,6 @@ class ROSQmlBridge(QObject):
     def controlActive(self): return self._control_active
 
     def imu_callback(self, msg: Imu):
-        self.last_imu_time = self.node.get_clock().now()
-        if not self._rov_connected:
-            self._rov_connected = True
-            self.rov_connected_changed.emit(True)
-
         try:
             angles = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
             roll, pitch, yaw = euler_from_quaternion(angles)
@@ -419,35 +415,33 @@ class ROSQmlBridge(QObject):
                 self.joy_status_changed.emit(False)
 
     def check_rov_timeout(self):
-        if self.last_imu_time is None:
+        if self.last_rov_armed_time is None:
             return
         current_time = self.node.get_clock().now()
-        if (current_time - self.last_imu_time) > Duration(seconds=1.5):
+        if (current_time - self.last_rov_armed_time) > Duration(seconds=1.5):
             if self._rov_connected:
                 self._rov_connected = False
                 self.rov_connected_changed.emit(False)
 
+    def rov_armed_callback(self, msg: Bool):
+        self.last_rov_armed_time = self.node.get_clock().now()
+        if not self._rov_connected:
+            self._rov_connected = True
+            self.rov_connected_changed.emit(True)
+        if self._rov_armed != msg.data:
+            self._rov_armed = msg.data
+            QMetaObject.invokeMethod(
+                self, '_emit_rov_armed',
+                Qt.ConnectionType.QueuedConnection,
+                Q_ARG(bool, self._rov_armed)
+            )
+
     @pyqtSlot(bool)
     def sendArmCommand(self, arm_request: bool):
-        if not self.arm_client.service_is_ready():
-            return
-        request = SetBool.Request()
-        request.data = arm_request
-        future = self.arm_client.call_async(request)
-        future.add_done_callback(lambda fut: self.arm_service_response_callback(fut, arm_request))
-
-    def arm_service_response_callback(self, future, requested_state):
-        try:
-            response = future.result()
-            if response and response.success:
-                self._rov_armed = requested_state
-                QMetaObject.invokeMethod(
-                    self, '_emit_rov_armed',
-                    Qt.ConnectionType.QueuedConnection,
-                    Q_ARG(bool, self._rov_armed)
-                )
-        except Exception as e:
-            self.node.get_logger().warn(f'Arm service response error: {e}')
+        self.node.get_logger().info(f'Sending arm command: {"ARM" if arm_request else "DISARM"}')
+        msg = Bool()
+        msg.data = arm_request
+        self.arm_pub.publish(msg)
 
     @pyqtSlot(bool)
     def _emit_rov_armed(self, armed: bool):

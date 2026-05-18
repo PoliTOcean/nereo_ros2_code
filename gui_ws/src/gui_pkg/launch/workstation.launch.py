@@ -1,5 +1,7 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, EmitEvent, RegisterEventHandler
+from launch.event_handlers import OnProcessExit
+from launch.events import Shutdown
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -9,6 +11,45 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
+    joy_node = Node(
+        package='joy',
+        executable='joy_node',
+        name='joy_node',
+        parameters=[{'device': LaunchConfiguration('device')}],
+    )
+    joy_to_cmdvel_node = Node(
+        package='joystick_pkg',
+        executable='joy_to_cmdvel',
+        name='joy_to_cmd_vel',
+        parameters=[{
+            'deadzone':  LaunchConfiguration('deadzone'),
+            'max_steps': LaunchConfiguration('max_steps'),
+            'btn_arm':   LaunchConfiguration('btn_arm'),
+            'btn_mode':  LaunchConfiguration('btn_mode'),
+        }],
+    )
+    gui_node = Node(
+        package='gui_pkg',
+        executable='gui_node',
+        name='gui_node',
+    )
+    rosbridge_node = Node(
+        package='rosbridge_server',
+        executable='rosbridge_websocket',
+        name='rosbridge_websocket',
+        parameters=[{'port': 9090}],
+    )
+    web_server_node = Node(
+        package='web_pkg',
+        executable='web_server_node',
+        name='web_server_node',
+    )
+    safety_node = Node(
+        package='web_pkg',
+        executable='safety_node',
+        name='safety_node',
+    )
+
     return LaunchDescription([
         DeclareLaunchArgument('device',    default_value='/dev/input/js0',
                               description='Joystick device path'),
@@ -19,42 +60,17 @@ def generate_launch_description():
         DeclareLaunchArgument('btn_mode',  default_value='6',
                               description='Mode toggle button index (Xbox: 6, DS5: 8)'),
 
-        Node(
-            package='joy',
-            executable='joy_node',
-            name='joy_node',
-            parameters=[{'device': LaunchConfiguration('device')}],
-        ),
-        Node(
-            package='joystick_pkg',
-            executable='joy_to_cmdvel',
-            name='joy_to_cmd_vel',
-            parameters=[{
-                'deadzone':  LaunchConfiguration('deadzone'),
-                'max_steps': LaunchConfiguration('max_steps'),
-                'btn_arm':   LaunchConfiguration('btn_arm'),
-                'btn_mode':  LaunchConfiguration('btn_mode'),
-            }],
-        ),
-        Node(
-            package='gui_pkg',
-            executable='gui_node',
-            name='gui_node',
-        ),
-        Node(
-            package='rosbridge_server',
-            executable='rosbridge_websocket',
-            name='rosbridge_websocket',
-            parameters=[{'port': 9090}],
-        ),
-        Node(
-            package='web_pkg',
-            executable='web_server_node',
-            name='web_server_node',
-        ),
-        Node(
-            package='web_pkg',
-            executable='safety_node',
-            name='safety_node',
+        joy_node,
+        joy_to_cmdvel_node,
+        gui_node,
+        rosbridge_node,
+        web_server_node,
+        safety_node,
+
+        RegisterEventHandler(
+            OnProcessExit(
+                target_action=gui_node,
+                on_exit=[EmitEvent(event=Shutdown())],
+            )
         ),
     ])
