@@ -2,14 +2,17 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>joystick_pkg</name>
-  <version>0.0.0</version>
-  <description>Joystick to cmd_vel package</description>
-  <maintainer email="salvatore.losardo@studenti.polito.it">your_name</maintainer>
+  <version>1.0.0</version>
+  <description>Joystick to CommandVelocity node for PoliTOcean Nereo ROV</description>
+  <maintainer email="davidecola16@gmail.com">Davide Colabella</maintainer>
   <license>Apache-2.0</license>
 
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>nereo_interfaces</depend>
+
+  <exec_depend>ros-humble-joy</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

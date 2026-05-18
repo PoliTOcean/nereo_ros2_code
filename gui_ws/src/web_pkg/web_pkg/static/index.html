@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Nereo</title>
+  <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.10.1/dist/nipplejs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/roslib@1.4.1/build/roslib.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #0f1115;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── header ── */
+    #header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 14px;
+      background: #12141a;
+      border-bottom: 1px solid #333;
+      flex-shrink: 0;
+    }
+    #header h1 { font-size: 15px; font-weight: bold; color: #00b7ff; }
+
+    #status-row { display: flex; gap: 8px; align-items: center; }
+    .badge {
+      font-size: 10px; font-weight: bold; padding: 3px 8px;
+      border-radius: 10px; border: 1px solid;
+    }
+    .badge.ok  { border-color: #00b7ff; color: #00b7ff; background: #0d1e2e; }
+    .badge.err { border-color: #ff3333; color: #ff3333; background: #2e0d0d; }
+
+    /* ── telemetry bar ── */
+    #telemetry {
+      display: flex; gap: 12px; padding: 4px 14px;
+      background: #12141a; border-bottom: 1px solid #222;
+      font-size: 11px; flex-shrink: 0; flex-wrap: wrap;
+    }
+    .telem-item { display: flex; gap: 4px; }
+    .telem-label { color: #8aa1b3; }
+    .telem-value { color: #00e6e6; font-weight: bold; }
+
+    /* ── main controls area ── */
+    #controls {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 12px 16px;
+      gap: 12px;
+    }
+
+    .joystick-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .joystick-zone {
+      width: 180px; height: 180px;
+      background: #1a1f2e;
+      border: 1px solid #2a3040;
+      border-radius: 50%;
+      position: relative;   /* required by nipplejs static mode */
+      flex-shrink: 0;
+    }
+
+    .joystick-label {
+      font-size: 10px; color: #8aa1b3; font-weight: bold;
+      text-align: center;
+    }
+
+    /* scale down on short screens (landscape phone) */
+    @media (max-height: 380px) {
+      .joystick-zone { width: 120px; height: 120px; }
+    }
+
+    /* ── center buttons ── */
+    #center-btns {
+      display: flex; flex-direction: column; gap: 10px; align-items: center;
+    }
+    .ctrl-btn {
+      width: 80px; height: 42px;
+      border-radius: 8px; border: 1px solid;
+      font-size: 11px; font-weight: bold;
+      cursor: pointer; background: #1a1f2e;
+    }
+    #btn-arm       { border-color: #ff4444; color: #ff4444; }
+    #btn-arm.armed { border-color: #00b7ff; color: #00b7ff; }
+    #btn-mode      { border-color: #8aa1b3; color: #8aa1b3; }
+    #btn-mode.ctrl { border-color: #00e6e6; color: #00e6e6; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div id="header">
+  <h1>⚓ Nereo ROV</h1>
+  <div id="status-row">
+    <span id="badge-ros"  class="badge err">ROS ✕</span>
+    <span id="badge-arm"  class="badge err">DISARMED</span>
+    <span id="badge-mode" class="badge err">DIRECT</span>
+  </div>
+</div>
+
+<!-- ── Telemetry ── -->
+<div id="telemetry">
+  <div class="telem-item"><span class="telem-label">ROLL</span>  <span class="telem-value" id="t-roll">0.0°</span></div>
+  <div class="telem-item"><span class="telem-label">PITCH</span> <span class="telem-value" id="t-pitch">0.0°</span></div>
+  <div class="telem-item"><span class="telem-label">YAW</span>   <span class="telem-value" id="t-yaw">0.0°</span></div>
+  <div class="telem-item"><span class="telem-label">DEPTH</span> <span class="telem-value" id="t-depth">0.00 m</span></div>
+</div>
+
+<!-- ── Controls ── -->
+<div id="controls">
+
+  <div class="joystick-wrap">
+    <div class="joystick-zone" id="zone-left"></div>
+    <div class="joystick-label">SURGE / SWAY</div>
+  </div>
+
+  <div id="center-btns">
+    <button class="ctrl-btn" id="btn-arm">ARM</button>
+    <button class="ctrl-btn" id="btn-mode">DIRECT</button>
+  </div>
+
+  <div class="joystick-wrap">
+    <div class="joystick-zone" id="zone-right"></div>
+    <div class="joystick-label">HEAVE / YAW</div>
+  </div>
+
+</div>
+
+<script>
+// ── ROS connection with auto-reconnect ────────────────────────────────────
+const WS_URL = `ws://${location.hostname}:9090`;
+const ros = new ROSLIB.Ros({});
+
+function rosConnect() {
+  try { ros.connect(WS_URL); } catch(e) {}
+}
+
+ros.on('connection', () => {
+  setBadge('badge-ros', 'ROS ✓', true);
+});
+ros.on('error', () => {
+  setBadge('badge-ros', 'ROS ERR', false);
+});
+ros.on('close', () => {
+  setBadge('badge-ros', 'ROS ✕', false);
+  setTimeout(rosConnect, 2000);   // retry after 2 s
+});
+
+rosConnect();
+
+function setBadge(id, text, ok) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'badge ' + (ok ? 'ok' : 'err');
+}
+
+// ── Topics / services ──────────────────────────────────────────────────────
+const cmdVelTopic = new ROSLIB.Topic({
+  ros, name: '/web_cmd_vel', messageType: 'nereo_interfaces/CommandVelocity',
+  queue_size: 1, latch: false
+});
+const armService = new ROSLIB.Service({
+  ros, name: '/set_rov_arm_mode', serviceType: 'std_srvs/SetBool'
+});
+const pubControlActive = new ROSLIB.Topic({
+  ros, name: '/joy_control_active', messageType: 'std_msgs/Bool'
+});
+
+// ── Telemetry ──────────────────────────────────────────────────────────────
+new ROSLIB.Topic({ ros, name: '/imu_data', messageType: 'sensor_msgs/Imu' })
+  .subscribe(msg => {
+    const q = msg.orientation;
+    const sinr = 2*(q.w*q.x + q.y*q.z), cosr = 1 - 2*(q.x*q.x + q.y*q.y);
+    const sinp = 2*(q.w*q.y - q.z*q.x);
+    const siny = 2*(q.w*q.z + q.x*q.y), cosy = 1 - 2*(q.y*q.y + q.z*q.z);
+    document.getElementById('t-roll').textContent  = (Math.atan2(sinr, cosr) * 180/Math.PI).toFixed(1) + '°';
+    document.getElementById('t-pitch').textContent = (Math.asin(Math.max(-1,Math.min(1,sinp))) * 180/Math.PI).toFixed(1) + '°';
+    document.getElementById('t-yaw').textContent   = (Math.atan2(siny, cosy) * 180/Math.PI).toFixed(1) + '°';
+  });
+
+new ROSLIB.Topic({ ros, name: '/barometer_pressure', messageType: 'sensor_msgs/FluidPressure' })
+  .subscribe(msg => {
+    document.getElementById('t-depth').textContent =
+      ((msg.fluid_pressure - 101325) / 9806.65).toFixed(2) + ' m';
+  });
+
+new ROSLIB.Topic({ ros, name: '/joy_control_active', messageType: 'std_msgs/Bool' })
+  .subscribe(msg => updateModeUI(msg.data));
+
+// ── State ──────────────────────────────────────────────────────────────────
+let surge = 0, sway = 0, heave = 0, yaw = 0;
+let armed = false, ctrlMode = false;
+
+// ── Publish loop — rAF + 20 Hz gate ───────────────────────────────────────
+let lastPublish = 0;
+
+function publishLoop(ts) {
+  if (ts - lastPublish >= 45) {
+    lastPublish = ts;
+    cmdVelTopic.publish(
+      new ROSLIB.Message({ cmd_vel: [surge, sway, heave, 0.0, 0.0, yaw] })
+    );
+  }
+  requestAnimationFrame(publishLoop);
+}
+requestAnimationFrame(publishLoop);
+
+// ── Left joystick — surge / sway ───────────────────────────────────────────
+const joyL = nipplejs.create({
+  zone: document.getElementById('zone-left'),
+  mode: 'static', position: { left: '50%', top: '50%' },
+  color: '#00b7ff', size: 110
+});
+joyL.on('move', (_, d) => {
+  const f = Math.min(d.force, 1.0), a = d.angle.radian;
+  surge =  Math.sin(a) * f;
+  sway  =  Math.cos(a) * f;
+});
+joyL.on('end', () => { surge = 0; sway = 0; });
+
+// ── Right joystick — heave (Y) / yaw (X) ──────────────────────────────────
+const joyR = nipplejs.create({
+  zone: document.getElementById('zone-right'),
+  mode: 'static', position: { left: '50%', top: '50%' },
+  color: '#00e6e6', size: 110
+});
+joyR.on('move', (_, d) => {
+  const f = Math.min(d.force, 1.0), a = d.angle.radian;
+  heave =  Math.sin(a) * f;   // up → positive heave
+  yaw   =  Math.cos(a) * f;   // right → positive yaw (will be inverted by node)
+});
+joyR.on('end', () => { heave = 0; yaw = 0; });
+
+// ── Arm button ─────────────────────────────────────────────────────────────
+document.getElementById('btn-arm').addEventListener('click', () => {
+  armService.callService(new ROSLIB.ServiceRequest({ data: !armed }), res => {
+    if (res && res.success) { armed = !armed; updateArmUI(); }
+  });
+});
+
+function updateArmUI() {
+  const btn = document.getElementById('btn-arm');
+  if (armed) {
+    btn.textContent = 'DISARM'; btn.className = 'ctrl-btn armed';
+    setBadge('badge-arm', 'ARMED', true);
+  } else {
+    btn.textContent = 'ARM'; btn.className = 'ctrl-btn';
+    setBadge('badge-arm', 'DISARMED', false);
+  }
+}
+
+// ── Mode button ────────────────────────────────────────────────────────────
+document.getElementById('btn-mode').addEventListener('click', () => {
+  ctrlMode = !ctrlMode;
+  pubControlActive.publish(new ROSLIB.Message({ data: ctrlMode }));
+  updateModeUI(ctrlMode);
+});
+
+function updateModeUI(active) {
+  ctrlMode = active;
+  const btn = document.getElementById('btn-mode');
+  if (active) {
+    btn.textContent = 'CTRL'; btn.className = 'ctrl-btn ctrl';
+    setBadge('badge-mode', 'CONTROLLER', true);
+  } else {
+    btn.textContent = 'DIRECT'; btn.className = 'ctrl-btn';
+    setBadge('badge-mode', 'DIRECT', false);
+  }
+}
+</script>
+</body>
+</html>

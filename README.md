@@ -6,279 +6,270 @@ The project is organized in two ROS 2 workspaces:
 - `gui_ws`: control station (GUI + joystick command generation)
 - `rpi_ws`: Raspberry Pi (sensor acquisition and publishing)
 
-Current stack in the repo scripts is aligned to ROS 2 Jazzy.
+Current stack in the repo scripts is aligned to ROS 2 Humble.
+
+## Installation (fresh machine)
+
+### 1. Install rosbridge
+
+```bash
+sudo apt install ros-humble-rosbridge-suite
+```
+
+### 2. Register the custom rosdep sources
+
+Some dependencies (`PyQt6`, `bluerobotics-ping`) are not in the default rosdep index.
+Register the local override file once after cloning:
+
+```bash
+echo "yaml file://$(pwd)/rosdep.yaml" | sudo tee /etc/ros/rosdep/sources.list.d/nereo.list
+rosdep update
+```
+
+### 3. Install all dependencies
+
+```bash
+# Control station (PC)
+cd gui_ws
+rosdep install --from-paths src --ignore-src -r -y
+
+# Raspberry Pi
+cd ../rpi_ws
+rosdep install --from-paths src --ignore-src -r -y
+```
+
+### 4. Build
+
+```bash
+cd gui_ws && colcon build && source install/setup.zsh
+cd ../rpi_ws && colcon build && source install/setup.zsh
+```
+
+---
 
 ## ROS 2 packages
 
-1. `gui_pkg`
-    - GUI node and diagnostics visualization.
-    - Subscribes to sensor/diagnostic topics and triggers arm/disarm service.
+### `gui_ws` — Control station
 
-2. `joystick_pkg`
-    - Reads joystick data and publishes vehicle command velocity.
+1. **`gui_pkg`**
+   - QML/QtQuick6 GUI with live video (3× GStreamer H264/UDP), IMU orientation widget, depth, sonar viewer.
+   - `RosBridge`: subscribes to telemetry topics, exposes data to QML via PyQt6 signals.
+   - `SonarBridge` + `SonarRenderer`: subscribes to sonar topics, renders waterfall and A-scan via matplotlib into `QQuickImageProvider`.
+   - Dispatches async `/set_rov_arm_mode` service calls with thread-safe Qt signal delivery.
 
-3. `nereo_sensors_pkg` (in `rpi_ws`)
-    - C++ nodes for IMU and barometer over I2C on Raspberry Pi.
+2. **`joystick_pkg`**
+   - Reads joystick input via `sensor_msgs/Joy` and publishes `CommandVelocity`.
+   - Default mode: publishes on `/nereo_cmd_vel_joy` → forwarded by `safety_node`.
+   - Controller mode (mode button toggle): publishes on `/nereo_cmd_vel_no_fb` → controller node → `safety_node`.
+   - Arm button toggles arm/disarm via `/set_rov_arm_mode` service.
+   - D-pad controls pitch/roll trim (incremental, rising-edge only).
+
+3. **`web_pkg`**
+   - HTTP server (port 8080) serving the web controller UI.
+   - `safety_node`: arbitrates commands from physical controller and web interface, publishes on `/nereo_cmd_vel` with priority and timeout rules.
+   - Web controller available at `http://<workstation-ip>:8080`.
+   - ROV simulator available at `http://<workstation-ip>:8080/sim.html`.
+
+### `rpi_ws` — Raspberry Pi
+
+1. **`nereo_sensors_pkg`**
+   - C++ nodes for IMU (WT61P over I2C) and barometer (MS5837 over I2C).
+
+2. **`sonar_pkg`**
+   - Python driver node for the Blue Robotics Ping1D altimeter/echosounder.
+   - Serial connection via USB (or socat tunnel over Ethernet from the Raspberry Pi).
+   - All sonar parameters (port, baud, speed of sound, scan range, gain, ping interval) are ROS 2 parameters.
 
 ## ROS 2 node map
 
 ### Nodes and responsibilities
 
-- `imu_publisher` (`rpi_ws/src/nereo_sensors_pkg/src/imuPub.cpp`)
-   - Publishes IMU data and IMU diagnostics.
-- `bar_publisher` (`rpi_ws/src/nereo_sensors_pkg/src/barPub.cpp`)
-   - Publishes pressure, temperature, and barometer diagnostics.
-- `joy_to_cmd_vel` (`gui_ws/src/joystick_pkg/joystick_pkg/joy_to_cmdvel.py`)
-   - Reads joystick and publishes `CommandVelocity` on `/nereo_cmd_vel`.
-- `gui_node` (`gui_ws/src/gui_pkg/gui_pkg/gui_node.py`)
-   - Subscribes to sensor/diagnostic/joy topics to update UI and state.
-- `rov_arm_disarm_service_client` (`gui_ws/src/gui_pkg/gui_pkg/Services.py`)
-   - Service client for `/set_rov_arm_mode` (`std_srvs/srv/SetBool`).
+| Node | Package | Side | Role |
+| --- | --- | --- | --- |
+| `imu_publisher` | `nereo_sensors_pkg` | RPi | Reads WT61P IMU over I2C, publishes data + diagnostics |
+| `bar_publisher` | `nereo_sensors_pkg` | RPi | Reads MS5837 barometer over I2C, publishes pressure + diagnostics |
+| `sonar_node` | `sonar_pkg` | RPi | Reads Ping1D via serial, publishes distance, confidence, profile |
+| `gui_node` | `gui_pkg` | PC | Main QML dashboard, fuses all telemetry into the GUI |
+| `joy_to_cmd_vel` | `joystick_pkg` | PC | Joystick → `CommandVelocity` on `_joy` or `_no_fb` topic |
+| `safety_node` | `web_pkg` | PC | Arbitrates controller + web commands → `/nereo_cmd_vel` |
+| `web_server_node` | `web_pkg` | PC | Serves web controller UI on port 8080 |
+| `rov_sim_node` | `gui_pkg` | PC | Full ROV simulator for local testing |
+| `sonar_sim_node` | `sonar_pkg` | PC | Sonar simulator publishing synthetic waterfall data |
 
-### Detailed behavior: what each node does and where
+### Topic map
 
-#### 1) `imu_publisher` (Raspberry Pi side)
-- **Where**: `rpi_ws/src/nereo_sensors_pkg/src/imuPub.cpp`
-- **Node name**: `imu_publisher`
-- **Main responsibility**:
-   - Reads IMU measurements from hardware (angular velocity, linear acceleration, orientation).
-   - Converts orientation to quaternion.
-   - Computes covariance matrices from sliding windows.
-   - Publishes both sensor data and diagnostics.
-- **Published topics**:
-   - `imu_data` (`sensor_msgs/msg/Imu`)
-   - `imu_diagnostic` (`diagnostic_msgs/msg/DiagnosticArray`)
-- **Execution model**:
-   - Timer callback every ~200 ms (`create_wall_timer(200ms, ...)`).
+| Publisher | Topic | Type | Consumer |
+| --- | --- | --- | --- |
+| `imu_publisher` | `imu_data` | `sensor_msgs/Imu` | `gui_node` |
+| `imu_publisher` | `imu_diagnostic` | `diagnostic_msgs/DiagnosticArray` | — |
+| `bar_publisher` | `barometer_pressure` | `sensor_msgs/FluidPressure` | `gui_node` |
+| `bar_publisher` | `barometer_temperature` | `sensor_msgs/Temperature` | — |
+| `bar_publisher` | `barometer_diagnostic` | `diagnostic_msgs/DiagnosticArray` | — |
+| `sonar_node` / `sonar_sim_node` | `sonar/distance` | `std_msgs/Float32` | `gui_node` |
+| `sonar_node` / `sonar_sim_node` | `sonar/confidence` | `std_msgs/Int32` | `gui_node` |
+| `sonar_node` / `sonar_sim_node` | `sonar/profile` | `std_msgs/Float32MultiArray` | `gui_node` |
+| `joy_to_cmd_vel` | `/nereo_cmd_vel_joy` | `nereo_interfaces/CommandVelocity` | `safety_node` |
+| `joy_to_cmd_vel` | `/nereo_cmd_vel_no_fb` | `nereo_interfaces/CommandVelocity` | controller node / `safety_node` |
+| `joy_to_cmd_vel` | `/joy_control_active` | `std_msgs/Bool` | `gui_node`, web |
+| web client | `/web_cmd_vel` | `nereo_interfaces/CommandVelocity` | `safety_node` |
+| `safety_node` | `/nereo_cmd_vel` | `nereo_interfaces/CommandVelocity` | **ROV firmware** |
 
-#### 2) `bar_publisher` (Raspberry Pi side)
-- **Where**: `rpi_ws/src/nereo_sensors_pkg/src/barPub.cpp`
-- **Node name**: `bar_publisher`
-- **Main responsibility**:
-   - Reads barometer values (temperature + pressure) from I2C sensor.
-   - Builds and publishes a diagnostic report depending on acquisition/init status.
-- **Published topics**:
-   - `barometer_temperature` (`sensor_msgs/msg/Temperature`)
-   - `barometer_pressure` (`sensor_msgs/msg/FluidPressure`)
-   - `barometer_diagnostic` (`diagnostic_msgs/msg/DiagnosticArray`)
-- **Execution model**:
-   - Timer callback every ~300 ms (`create_wall_timer(300ms, ...)`).
+### Safety arbitration rules (`safety_node`)
 
-#### 3) `joy_to_cmd_vel` (Control station side)
-- **Where**: `gui_ws/src/joystick_pkg/joystick_pkg/joy_to_cmdvel.py`
-- **Node name**: `joy_to_cmd_vel`
-- **Main responsibility**:
-   - Reads joystick state through the local controller abstraction.
-   - Applies deadzone and cooldown logic for pitch/roll accumulation.
-   - Builds and publishes vehicle command vector.
-- **Published topics**:
-   - `/nereo_cmd_vel` (`nereo_interfaces/msg/CommandVelocity`)
-- **Execution model**:
-   - Timer callback at 20 Hz (`create_timer(1/20, ...)`).
+| Condition | Output |
+| --- | --- |
+| Controller active (message < 0.5 s ago) | Controller command forwarded, web ignored |
+| Only web active | Web command forwarded |
+| Web silent for 0–1 s | Last web command held |
+| Web silent for 1–1.5 s | Command ramped to zero |
+| Web silent > 1.5 s | Zero command sent |
+| No source active | Zero command sent |
 
-#### 4) `gui_node` (Control station side)
-- **Where**: `gui_ws/src/gui_pkg/gui_pkg/gui_node.py`
-- **Node name**: `gui_node`
-- **Main responsibility**:
-   - Subscribes to sensor/diagnostic/joystick topics.
-   - Feeds UI values (depth, roll/pitch/yaw) and peripheral diagnostic status.
-   - Tracks joystick link health with a periodic connection check.
-   - Triggers arm/disarm workflow through the service client.
-- **Subscribed topics**:
-   - `imu_data` (`sensor_msgs/msg/Imu`)
-   - `barometer_pressure` (`sensor_msgs/msg/FluidPressure`)
-   - `barometer_diagnostic` (`diagnostic_msgs/msg/DiagnosticArray`)
-   - `imu_diagnostic` (`diagnostic_msgs/msg/DiagnosticArray`)
-   - `diagnostic_messages` (`diagnostic_msgs/msg/DiagnosticArray`)
-   - `joy` (`sensor_msgs/msg/Joy`)
-- **Execution model**:
-   - Runs inside a dedicated ROS thread in the GUI process.
-   - Uses an internal queue + worker thread (`SensorProcessor`) to decouple UI updates.
-
-#### 5) `rov_arm_disarm_service_client` (Control station side)
-- **Where**: `gui_ws/src/gui_pkg/gui_pkg/Services.py`
-- **Node name**: `rov_arm_disarm_service_client`
-- **Main responsibility**:
-   - Connects to `/set_rov_arm_mode` service (`SetBool`).
-   - Handles reconnection retries and keeps local arm state.
-   - Executes arm/disarm requests triggered by GUI/joystick events.
-
-### Publisher / Subscriber matrix
-
-| Node | Publishers | Subscribers | Services |
-|---|---|---|---|
-| `imu_publisher` | `imu_data` (`sensor_msgs/msg/Imu`), `imu_diagnostic` (`diagnostic_msgs/msg/DiagnosticArray`) | - | - |
-| `bar_publisher` | `barometer_temperature` (`sensor_msgs/msg/Temperature`), `barometer_pressure` (`sensor_msgs/msg/FluidPressure`), `barometer_diagnostic` (`diagnostic_msgs/msg/DiagnosticArray`) | - | - |
-| `joy_to_cmd_vel` | `/nereo_cmd_vel` (`nereo_interfaces/msg/CommandVelocity`) | - | - |
-| `gui_node` | - | `imu_data`, `barometer_pressure`, `barometer_diagnostic`, `imu_diagnostic`, `diagnostic_messages`, `joy` | Uses `rov_arm_disarm_service_client` logic |
-| `rov_arm_disarm_service_client` | - | - | Client of `/set_rov_arm_mode` (`SetBool`) |
-
-### Mermaid diagram - workspace architecture
+### Mermaid diagram — workspace architecture
 
 ```mermaid
 graph LR
    subgraph RPI[rpi_ws - Raspberry Pi]
       IMU[imu_publisher]
       BAR[bar_publisher]
+      SONAR[sonar_node]
+      CAM[GStreamer cameras\nH264 UDP]
    end
 
    subgraph CTRL[gui_ws - Control Station]
-      GUI[gui_node]
+      GUI[gui_node\nRosBridge + SonarBridge]
       JOY[joy_to_cmd_vel]
-      ARM[rov_arm_disarm_service_client]
+      SAFETY[safety_node]
+      WEB[web_server_node\nport 8080]
    end
 
-   JDRV[joystick_driver external]
+   subgraph SIM[Simulators - local testing]
+      ROVSIM[rov_sim_node]
+      SONARSIM[sonar_sim_node]
+   end
 
-   IMU -->|imu_data| GUI
-   IMU -->|imu_diagnostic| GUI
-   BAR -->|barometer_pressure| GUI
-   BAR -->|barometer_temperature| GUI
-   BAR -->|barometer_diagnostic| GUI
+   PHONE[Phone / tablet\nbrowser]
 
-   JOY -->|nereo_cmd_vel| ROV[(ROV control stack)]
-   JDRV -->|joy| GUI
+   IMU -.->|imu_data| GUI
+   BAR -.->|barometer_pressure| GUI
+   SONAR -.->|sonar/*| GUI
+   CAM -.->|RTP/UDP 5001-5003| GUI
 
-   GUI -->|arm/disarm trigger| ARM
-   ARM -->|SetBool set_rov_arm_mode| ROV
+   ROVSIM ==>|imu_data, barometer_pressure, joy| GUI
+   SONARSIM ==>|sonar/*| GUI
+
+   JOY -->|nereo_cmd_vel_joy| SAFETY
+   JOY -.->|nereo_cmd_vel_no_fb\ncontroller mode| SAFETY
+   PHONE -->|web_cmd_vel\nvia rosbridge:9090| SAFETY
+   WEB -->|serves UI| PHONE
+   SAFETY -->|nereo_cmd_vel| ROV[(ROV firmware\nmicroROS)]
+   GUI -->|SetBool /set_rov_arm_mode| ROV
 ```
 
-### Mermaid diagram - topic-centric view
+## Running on the workstation (with ROV)
 
-```mermaid
-graph TB
-   imu_data((imu_data))
-   imu_diag((imu_diagnostic))
-   bar_p((barometer_pressure))
-   bar_t((barometer_temperature))
-   bar_diag((barometer_diagnostic))
-   joy_t((joy))
-   nereo_cmd((nereo_cmd_vel))
-   srv{{set_rov_arm_mode SetBool}}
-
-   imu_node[imu_publisher]
-   bar_node[bar_publisher]
-   gui_node[gui_node]
-   joy_node[joy_to_cmd_vel]
-   arm_node[rov_arm_disarm_service_client]
-
-   imu_node --> imu_data
-   imu_data --> gui_node
-   imu_node --> imu_diag
-   imu_diag --> gui_node
-
-   bar_node --> bar_p
-   bar_p --> gui_node
-   bar_node --> bar_t
-   bar_t --> gui_node
-   bar_node --> bar_diag
-   bar_diag --> gui_node
-
-   joy_t --> gui_node
-   joy_node --> nereo_cmd
-
-   gui_node --> arm_node
-   arm_node --> srv
-```
-
-## Cartella scripts: contenuto e attivazione
-
-La cartella `scripts` contiene gli script operativi per avviare rapidamente la parte Control Station e per installare/gestire i servizi su Raspberry Pi.
-
-### Struttura
-
-- `scripts/controlstation/start_gui`
-   - Avvia in `tmux` due processi nel workspace `gui_ws`:
-      - `ros2 run gui_pkg gui_node`
-      - `ros2 run joystick_pkg joy_to_cmdvel`
-   - Sorgente automaticamente gli environment ROS e workspace necessari.
-
-- `scripts/rpi/install_services.sh`
-   - Installa e abilita i servizi `systemd` lato RPi:
-      - `nereo-micro-ros.service`
-      - `nereo-sensors.service`
-      - `nereo-camera.service`
-   - Imposta anche regole/permessi per `/dev/ttyAMA0` e avvia i servizi.
-
-- `scripts/rpi/nereo_ros_env.sh`
-   - Wrapper comune usato dai servizi per caricare ambiente ROS (`jazzy`), `micro_ros_agent_ws` e `nereo_interfaces`.
-
-- `scripts/rpi/nereo_sensors_start.sh`
-   - Avvia in parallelo:
-      - `ros2 run nereo_sensors_pkg imu_pub`
-      - `ros2 run nereo_sensors_pkg barometer_pub`
-
-- `scripts/rpi/*.service`
-   - Unità `systemd` definitive usate all’avvio automatico del Raspberry.
-
-### Come attivarli (Control Station)
-
-Da root del repository:
+A single launch file starts everything: joystick driver, command translator, GUI, safety arbiter, rosbridge WebSocket, and web controller server.
 
 ```bash
-chmod +x scripts/controlstation/start_gui
-./scripts/controlstation/start_gui
+source gui_ws/install/setup.zsh
+ros2 launch gui_pkg workstation.launch.py
 ```
 
-Questo comando apre una sessione `tmux` (`gui_session`) con GUI e joystick node.
-
-### Come attivarli (Raspberry Pi)
-
-1. Copia la cartella `scripts/rpi` sul Raspberry (se necessario).
-2. Esegui installazione servizi:
+Optional arguments:
 
 ```bash
-cd /home/pi/nereo_ros2_code/scripts/rpi
-sudo bash install_services.sh
+# DS5 (different button indices)
+ros2 launch gui_pkg workstation.launch.py btn_arm:=10 btn_mode:=8
+
+# Different joystick device
+ros2 launch gui_pkg workstation.launch.py device:=/dev/input/js1
 ```
 
-3. Verifica stato:
+### Physical controller mapping
+
+| Input | Action | Xbox One S (default) | DS5 |
+| --- | --- | --- | --- |
+| Left stick Y/X | Surge / Sway | — | — |
+| Right stick Y/X | Heave / Yaw | — | — |
+| D-pad up/down | Pitch trim | — | — |
+| D-pad left/right | Roll trim | — | — |
+| Arm/Disarm | Toggle arm | Xbox (btn 8) | PS (btn 10) |
+| Mode toggle | Direct ↔ Controller | View (btn 6) | Share (btn 8) |
+
+**Direct mode** (👮 red in GUI): commands go to `/nereo_cmd_vel_joy` → `safety_node` → ROV.
+
+**Controller mode** (👮 blue in GUI): commands go to `/nereo_cmd_vel_no_fb` → controller node → `safety_node` → ROV.
+
+### Web controller (phone / tablet)
+
+Find the workstation IP:
+```bash
+hostname -I | awk '{print $1}'
+```
+
+Open from any device on the same network:
+- **Controller**: `http://<IP>:8080`
+- **ROV simulator**: `http://<IP>:8080/sim.html`
+
+The web controller publishes on `/web_cmd_vel`. The `safety_node` gives priority to the physical controller when both are active.
+
+---
+
+## Local testing (without ROV hardware)
+
+### 1. Build both workspaces
 
 ```bash
-systemctl status nereo-micro-ros
-systemctl status nereo-sensors
-systemctl status nereo-camera
+cd gui_ws && colcon build && source install/setup.zsh
+cd ../rpi_ws && colcon build && source install/setup.zsh
 ```
 
-### Comandi utili di gestione servizi
+### 2. Launch the full simulator (Terminal 1)
 
 ```bash
-sudo systemctl restart nereo-micro-ros
-sudo systemctl restart nereo-sensors
-sudo systemctl restart nereo-camera
+# IMU + barometer + joystick + arm service + 3 GStreamer test cameras
+ros2 run gui_pkg rov_sim_node
 
-sudo systemctl stop nereo-micro-ros nereo-sensors nereo-camera
-sudo systemctl start nereo-micro-ros nereo-sensors nereo-camera
-
-journalctl -u nereo-micro-ros -f
-journalctl -u nereo-sensors -f
-journalctl -u nereo-camera -f
+# Disable cameras if GStreamer is not available
+ros2 run gui_pkg rov_sim_node --ros-args -p simulate_cameras:=false
 ```
 
-### Note operative
-
-- `start_gui` usa `/opt/ros/humble/setup.bash`; i servizi RPi usano `/opt/ros/jazzy/setup.bash` via `nereo_ros_env.sh`.
-- Assicurati che la versione ROS installata sulla macchina corrisponda a quella richiamata dagli script.
-- Se modifichi un file `.service`, ricordati di fare:
+### 3. Launch the sonar simulator (Terminal 2)
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl restart <nome-servizio>
+ros2 run sonar_pkg sonar_sim_node
 ```
 
-## Unit test usage
+Simulates a sinusoidally oscillating bottom (2–8 m), gaussian echo profile, and a periodic confidence drop to test the threshold filter in the Sonar Viewer.
+
+### 4. Launch workstation stack (Terminal 3)
+
+```bash
+ros2 launch gui_pkg workstation.launch.py
+```
+
+Open the **SONAR** button to see the live waterfall and A-scan. Open `http://localhost:8080` for the web controller and `http://localhost:8080/sim.html` for the top-down ROV simulator.
+
+### Manual test scripts
+
+- `gui_ws/src/gui_pkg/test/cam_test.sh` — launches 3 GStreamer test streams independently.
+- `ros2 run joystick_pkg rov_cmd_monitor` — terminal dashboard showing live 6-DOF command vector.
+
+---
+
+### Unit test usage
 
 Inside `unit_tests`, you can find subdirectories containing CMake projects used to run simple debugging tests on stdout.
 
-### Unit test setup instructions
+#### Unit test setup instructions
 
 1. Move into a specific test folder, for example `unit_tests/my_unit_test`.
 2. Configure and build:
-    ```bash
+    ```
     cmake .
     make
     ```
 3. Run the produced executable (same name as the folder):
-    ```bash
-    ./my_unit_test
-    ```
+   ```
+   ./my_unit_test
+   ```

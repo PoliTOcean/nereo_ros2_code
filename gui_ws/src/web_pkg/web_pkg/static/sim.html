@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nereo — ROV Sim</title>
+  <script src="https://cdn.jsdelivr.net/npm/roslib@1.4.1/build/roslib.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #0a0e14;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', monospace;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+
+    #header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 14px;
+      background: #12141a; border-bottom: 1px solid #333;
+      flex-shrink: 0;
+    }
+    #header h1 { font-size: 14px; font-weight: bold; color: #00b7ff; }
+    .badge {
+      font-size: 10px; font-weight: bold; padding: 3px 8px;
+      border-radius: 10px; border: 1px solid;
+    }
+    .badge.ok  { border-color: #00b7ff; color: #00b7ff; background: #0d1e2e; }
+    .badge.err { border-color: #ff3333; color: #ff3333; background: #2e0d0d; }
+
+    /* telemetry strip */
+    #telem {
+      display: flex; gap: 16px; padding: 4px 14px;
+      background: #12141a; border-bottom: 1px solid #222;
+      font-size: 11px; flex-shrink: 0; flex-wrap: wrap;
+    }
+    .ti { display: flex; gap: 4px; }
+    .tl { color: #8aa1b3; }
+    .tv { color: #00e6e6; font-weight: bold; min-width: 48px; }
+
+    /* canvas fills remaining space */
+    #canvas-wrap {
+      flex: 1; min-height: 0;
+      position: relative;
+    }
+    canvas {
+      width: 100%; height: 100%;
+      display: block;
+    }
+
+    #controls-bar {
+      display: flex; gap: 10px; align-items: center;
+      padding: 6px 14px; background: #12141a;
+      border-top: 1px solid #333; flex-shrink: 0;
+    }
+    button {
+      padding: 4px 12px; border-radius: 6px; border: 1px solid #555;
+      background: #1a1f2e; color: #ccc; font-size: 11px; cursor: pointer;
+    }
+    button:hover { border-color: #00b7ff; color: #00b7ff; }
+    #info { font-size: 10px; color: #556; margin-left: auto; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <h1>⚓ Nereo ROV — Top-down sim</h1>
+  <span id="badge-ros" class="badge err">ROS ✕</span>
+</div>
+
+<div id="telem">
+  <div class="ti"><span class="tl">SURGE</span> <span class="tv" id="t-surge">0.00</span></div>
+  <div class="ti"><span class="tl">SWAY</span>  <span class="tv" id="t-sway">0.00</span></div>
+  <div class="ti"><span class="tl">HEAVE</span> <span class="tv" id="t-heave">0.00</span></div>
+  <div class="ti"><span class="tl">YAW</span>   <span class="tv" id="t-yaw">0.00</span></div>
+  <div class="ti"><span class="tl">PITCH</span> <span class="tv" id="t-pitch">0.00</span></div>
+  <div class="ti"><span class="tl">ROLL</span>  <span class="tv" id="t-roll">0.00</span></div>
+  <div class="ti"><span class="tl">X</span>     <span class="tv" id="t-x">0.0</span></div>
+  <div class="ti"><span class="tl">Y</span>     <span class="tv" id="t-y">0.0</span></div>
+  <div class="ti"><span class="tl">HDG</span>  <span class="tv" id="t-hdg">0°</span></div>
+  <div class="ti"><span class="tl">DEPTH</span><span class="tv" id="t-depth">0.0m</span></div>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="canvas"></canvas>
+</div>
+
+<div id="controls-bar">
+  <button id="btn-reset">Reset position</button>
+  <button id="btn-trail">Trail: ON</button>
+  <span id="info">Listening on /nereo_cmd_vel (safety_node output → firmware)</span>
+</div>
+
+<script>
+// ── ROS ───────────────────────────────────────────────────────────────────
+const WS_URL = `ws://${location.hostname}:9090`;
+const ros = new ROSLIB.Ros({});
+
+function rosConnect() { try { ros.connect(WS_URL); } catch(e) {} }
+ros.on('connection', () => setBadge('badge-ros', 'ROS ✓', true));
+ros.on('error',      () => setBadge('badge-ros', 'ROS ERR', false));
+ros.on('close',      () => { setBadge('badge-ros', 'ROS ✕', false); setTimeout(rosConnect, 2000); });
+rosConnect();
+
+function setBadge(id, t, ok) {
+  const el = document.getElementById(id);
+  el.textContent = t;
+  el.className = 'badge ' + (ok ? 'ok' : 'err');
+}
+
+// ── State ─────────────────────────────────────────────────────────────────
+const state = { x: 0, y: 0, hdg: 0, depth: 0 };   // hdg in radians, CW = positive
+const cmd   = { surge: 0, sway: 0, heave: 0, pitch: 0, roll: 0, yaw: 0 };
+const SPEED = 60;   // px per unit per second
+const YAW_SPEED = 1.2; // rad/s per unit
+
+let trail = true;
+let trailPoints = [];
+
+// ── Subscribe to both cmd topics ──────────────────────────────────────────
+function onCmdVel(msg) {
+  cmd.surge = msg.cmd_vel[0];
+  cmd.sway  = msg.cmd_vel[1];
+  cmd.heave = msg.cmd_vel[2];
+  cmd.pitch = msg.cmd_vel[3];
+  cmd.roll  = msg.cmd_vel[4];
+  cmd.yaw   = msg.cmd_vel[5];
+  document.getElementById('t-surge').textContent = cmd.surge.toFixed(2);
+  document.getElementById('t-sway').textContent  = cmd.sway.toFixed(2);
+  document.getElementById('t-heave').textContent = cmd.heave.toFixed(2);
+  document.getElementById('t-yaw').textContent   = cmd.yaw.toFixed(2);
+  document.getElementById('t-pitch').textContent = cmd.pitch.toFixed(2);
+  document.getElementById('t-roll').textContent  = cmd.roll.toFixed(2);
+}
+
+// /nereo_cmd_vel is the arbitrated output from safety_node → what the firmware receives
+new ROSLIB.Topic({ ros, name: '/nereo_cmd_vel', messageType: 'nereo_interfaces/CommandVelocity' }).subscribe(onCmdVel);
+
+// ── Canvas setup ──────────────────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+
+function resize() {
+  const wrap = document.getElementById('canvas-wrap');
+  canvas.width  = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── ROV shape (top-down, nose pointing up) ────────────────────────────────
+function drawROV(x, y, hdg, scale) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(hdg);
+
+  const s = scale;
+  // body
+  ctx.beginPath();
+  ctx.moveTo(0, -s*1.6);          // nose
+  ctx.lineTo( s*0.9, -s*0.6);
+  ctx.lineTo( s*1.0,  s*1.2);
+  ctx.lineTo(-s*1.0,  s*1.2);
+  ctx.lineTo(-s*0.9, -s*0.6);
+  ctx.closePath();
+  ctx.fillStyle   = '#1a3a5c';
+  ctx.strokeStyle = '#00b7ff';
+  ctx.lineWidth   = 2;
+  ctx.fill();
+  ctx.stroke();
+
+  // nose indicator
+  ctx.beginPath();
+  ctx.moveTo(0, -s*1.6);
+  ctx.lineTo(0, -s*0.6);
+  ctx.strokeStyle = '#00e6e6';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // thrusters (4 corners)
+  const thrusterPos = [
+    [ s*0.9, -s*0.8], [-s*0.9, -s*0.8],
+    [ s*0.9,  s*1.0], [-s*0.9,  s*1.0],
+  ];
+  thrusterPos.forEach(([tx, ty]) => {
+    ctx.beginPath();
+    ctx.arc(tx, ty, s*0.25, 0, Math.PI*2);
+    ctx.fillStyle   = '#0d2a40';
+    ctx.strokeStyle = '#4488aa';
+    ctx.lineWidth   = 1.5;
+    ctx.fill();
+    ctx.stroke();
+  });
+
+  ctx.restore();
+}
+
+// ── Grid ──────────────────────────────────────────────────────────────────
+function drawGrid(cx, cy) {
+  const spacing = 80;
+  ctx.strokeStyle = '#1a2030';
+  ctx.lineWidth = 1;
+
+  const startX = ((cx % spacing) + spacing) % spacing;
+  const startY = ((cy % spacing) + spacing) % spacing;
+
+  for (let x = startX - spacing; x < canvas.width + spacing; x += spacing) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  }
+  for (let y = startY - spacing; y < canvas.height + spacing; y += spacing) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  }
+
+  // origin cross
+  const ox = canvas.width/2  - state.x;
+  const oy = canvas.height/2 - state.y;
+  ctx.strokeStyle = '#2a4060';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(ox-12,oy); ctx.lineTo(ox+12,oy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ox,oy-12); ctx.lineTo(ox,oy+12); ctx.stroke();
+}
+
+// ── Main loop ─────────────────────────────────────────────────────────────
+let lastTs = null;
+
+function loop(ts) {
+  if (lastTs === null) lastTs = ts;
+  const dt = Math.min((ts - lastTs) / 1000, 0.1);  // cap at 100ms
+  lastTs = ts;
+
+  // Canvas: X→right, Y→down. Nose at hdg=0 points up (-Y).
+  // forward: (sin(h), -cos(h))   right: (cos(h), sin(h))
+  const cosH = Math.cos(state.hdg);
+  const sinH = Math.sin(state.hdg);
+  state.x += (cmd.surge *  sinH + cmd.sway *  cosH) * SPEED * dt;
+  state.y += (cmd.surge * -cosH + cmd.sway *  sinH) * SPEED * dt;
+  state.hdg += cmd.yaw * YAW_SPEED * dt;
+  state.depth += cmd.heave * 2.0 * dt;  // just for display
+
+  // camera: canvas center follows ROV
+  const cx = canvas.width  / 2;
+  const cy = canvas.height / 2;
+
+  // trail
+  if (trail) {
+    trailPoints.push({ x: state.x, y: state.y });
+    if (trailPoints.length > 2000) trailPoints.shift();
+  }
+
+  // draw
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawGrid(cx - state.x, cy - state.y);
+
+  // trail
+  if (trail && trailPoints.length > 1) {
+    ctx.beginPath();
+    ctx.moveTo(cx + (trailPoints[0].x - state.x), cy + (trailPoints[0].y - state.y));
+    for (let i = 1; i < trailPoints.length; i++) {
+      ctx.lineTo(cx + (trailPoints[i].x - state.x), cy + (trailPoints[i].y - state.y));
+    }
+    ctx.strokeStyle = '#00b7ff44';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // ROV always at center
+  drawROV(cx, cy, state.hdg, 14);
+
+  // heading arrow overlay
+  ctx.save();
+  ctx.font = '10px monospace';
+  ctx.fillStyle = '#556';
+  ctx.fillText(`HDG ${(state.hdg * 180 / Math.PI % 360).toFixed(0)}°`, 10, canvas.height - 8);
+  ctx.restore();
+
+  // update telemetry display
+  document.getElementById('t-x').textContent     = (state.x / SPEED).toFixed(1);
+  document.getElementById('t-y').textContent     = (state.y / SPEED).toFixed(1);
+  document.getElementById('t-hdg').textContent   = ((state.hdg * 180 / Math.PI) % 360).toFixed(0) + '°';
+  document.getElementById('t-depth').textContent = state.depth.toFixed(1) + 'm';
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ── Buttons ───────────────────────────────────────────────────────────────
+document.getElementById('btn-reset').addEventListener('click', () => {
+  state.x = 0; state.y = 0; state.hdg = 0; state.depth = 0;
+  trailPoints = [];
+});
+
+document.getElementById('btn-trail').addEventListener('click', function() {
+  trail = !trail;
+  this.textContent = `Trail: ${trail ? 'ON' : 'OFF'}`;
+  if (!trail) trailPoints = [];
+});
+</script>
+</body>
+</html>
