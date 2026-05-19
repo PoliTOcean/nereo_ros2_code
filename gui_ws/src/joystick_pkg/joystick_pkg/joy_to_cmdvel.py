@@ -1,6 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.duration import Duration
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Bool
 from nereo_interfaces.msg import CommandVelocity
@@ -79,8 +80,13 @@ class JoyToCmdVelNode(Node):
         self._pub_active     = self.create_publisher(Bool, '/joy_control_active', 10)
         self._arm_pub        = self.create_publisher(Bool, '/set_arm_mode', 10)
 
+        _best_effort_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10)
+
         self._armed = False
-        self.create_subscription(Bool, '/rov_armed', self._rov_armed_callback, 10)
+        self.create_subscription(Bool, '/rov_armed', self._rov_armed_callback, _best_effort_qos)
         self.create_subscription(Joy, 'joy', self._joy_callback, 10)
         self.create_timer(1 / 20, self._publish)
 

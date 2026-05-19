@@ -342,7 +342,7 @@ class ROSQmlBridge(QObject):
 
         self.arm_pub = self.node.create_publisher(Bool, '/set_arm_mode', 10)
         self.node.create_subscription(
-            Bool, '/rov_armed', self.rov_armed_callback, 10)
+            Bool, '/rov_armed', self.rov_armed_callback, PoliciesUtils.sensor_qos)
 
         self.sub_imu = self.node.create_subscription(
             Imu, 'imu_data', self.imu_callback, PoliciesUtils.sensor_qos)

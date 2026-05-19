@@ -52,6 +52,28 @@ cd ../rpi_ws
 rosdep install --from-paths src --ignore-src -r -y
 ```
 
+> **Note:** `rosdep` covers most GUI dependencies automatically via the local `rosdep.yaml`.
+> A few packages are not in the default rosdep index and must be installed manually.
+
+#### Extra GUI dependencies (not covered by rosdep)
+
+```bash
+# GStreamer plugins (live camera streams in the GUI)
+sudo apt install gstreamer1.0-plugins-good gstreamer1.0-plugins-base gstreamer1.0-tools
+
+# tf_transformations (IMU orientation — not in pip/rosdep index)
+sudo apt install ros-humble-tf-transformations
+
+# PyQt6 with QML/QtQuick support (python3-pyqt6 apt package lacks QML bindings)
+pip install PyQt6
+```
+
+| Dependency | Used by | Why not in rosdep |
+|---|---|---|
+| `gstreamer1.0-plugins-good/base` | `gui_pkg` | GStreamer apt split packages |
+| `ros-humble-tf-transformations` | `gui_pkg` | ROS package, not a pip/apt rosdep key |
+| `PyQt6` (pip) | `gui_pkg` | `python3-pyqt6` apt lacks `QtQml`/`QtQuick` bindings |
+
 ### 4. Build
 
 ```bash

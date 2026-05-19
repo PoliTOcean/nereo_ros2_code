@@ -101,7 +101,8 @@ void PublisherIMU::timer_callback()
 
     // READ — angles → quaternion
     imu_angle_error = WT61P_read_angle();
-    Vec3 angles = { WT61P_get_pitch(), WT61P_get_roll(), WT61P_get_yaw() };
+    // IMU is mounted upside-down: negate all axes. setRPY expects (roll, pitch, yaw).
+    Vec3 angles = { -WT61P_get_roll(), -WT61P_get_pitch(), -WT61P_get_yaw() };
     push_window(angles_window, angles);
 
     tf2::Quaternion tf2_quat;
@@ -176,9 +177,9 @@ void PublisherIMU::timer_callback()
 PublisherIMU::PublisherIMU(): Node("imu_publisher")
 {
     imu_data_publisher_ = this->create_publisher<sensor_msgs::msg::Imu>(
-        "imu_data", 10);
+        "imu_data", getSensorQoS());
     imu_diagnostic_publisher_ = this->create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
-        "imu_diagnostic", 10);
+        "imu_diagnostic", getSensorQoS());
 
     timer_ = this->create_wall_timer(200ms, std::bind(&PublisherIMU::timer_callback, this));
 
