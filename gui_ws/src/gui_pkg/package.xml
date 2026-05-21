@@ -14,8 +14,11 @@
   <depend>python3-pyqt6</depend>
   <depend>python3-numpy</depend>
   <depend>python3-matplotlib</depend>
+  <depend>python3-qrcode</depend>
   <depend>python3-gi</depend>
   <depend>tf_transformations</depend>
+  <depend>rcl_interfaces</depend>
+  <exec_depend>nereo_controller_node</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
