@@ -6,13 +6,20 @@ Topic layout:
 
   Physical controller (joy_to_cmdvel):
     /nereo_cmd_vel_joy      → direct mode  (priority 1 — highest)
-    /nereo_cmd_vel_no_fb    → controller mode (priority 1 — highest)
+
+  Controller node (nereo_controller_node, closed-loop):
+    /nereo_cmd_vel_ctrl     → controller mode (priority 1 — highest)
 
   Web interface:
     /web_cmd_vel            → web joystick  (priority 2)
 
   Output (to ROV firmware — microROS subscribes to this):
     /nereo_cmd_vel          → arbitrated, timeout-guarded command
+
+Note: /nereo_cmd_vel_no_fb is NOT subscribed here — it is the joystick output
+that goes into nereo_controller_node, which then republishes the closed-loop
+command on /nereo_cmd_vel_ctrl. This guarantees the safety node remains the
+single publisher of /nereo_cmd_vel.
 
 Priority rules:
   - If the physical controller has sent a command within CONTROLLER_TIMEOUT,
@@ -47,12 +54,14 @@ class SafetyNode(Node):
         self._pub = self.create_publisher(
             CommandVelocity, '/nereo_cmd_vel', 10)
 
-        # controller sources — both treated as highest priority
+        # controller sources — both treated as highest priority:
+        #   - /nereo_cmd_vel_joy:  raw joystick passthrough (DIRECT mode)
+        #   - /nereo_cmd_vel_ctrl: closed-loop output from nereo_controller_node
         self.create_subscription(
             CommandVelocity, '/nereo_cmd_vel_joy',
             lambda m: self._on_controller(m), 10)
         self.create_subscription(
-            CommandVelocity, '/nereo_cmd_vel_no_fb',
+            CommandVelocity, '/nereo_cmd_vel_ctrl',
             lambda m: self._on_controller(m), 10)
 
         # web source

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>Nereo</title>
+  <title>Nereo Controller</title>
   <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.10.1/dist/nipplejs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/roslib@1.4.1/build/roslib.min.js"></script>
   <style>
@@ -106,7 +106,7 @@
 
 <!-- ── Header ── -->
 <div id="header">
-  <h1>⚓ Nereo ROV</h1>
+  <h1>⚓ Nereo Controller</h1>
   <div id="status-row">
     <span id="badge-ros"  class="badge err">ROS ✕</span>
     <span id="badge-arm"  class="badge err">DISARMED</span>
@@ -120,6 +120,7 @@
   <div class="telem-item"><span class="telem-label">PITCH</span> <span class="telem-value" id="t-pitch">0.0°</span></div>
   <div class="telem-item"><span class="telem-label">YAW</span>   <span class="telem-value" id="t-yaw">0.0°</span></div>
   <div class="telem-item"><span class="telem-label">DEPTH</span> <span class="telem-value" id="t-depth">0.00 m</span></div>
+  <div class="telem-item"><span class="telem-label">TEMP</span>  <span class="telem-value" id="t-temp">0.0 °C</span></div>
 </div>
 
 <!-- ── Controls ── -->
@@ -201,6 +202,11 @@ new ROSLIB.Topic({ ros, name: '/barometer_pressure', messageType: 'sensor_msgs/F
   .subscribe(msg => {
     document.getElementById('t-depth').textContent =
       ((msg.fluid_pressure - 101325) / 9806.65).toFixed(2) + ' m';
+  });
+
+new ROSLIB.Topic({ ros, name: '/barometer_temperature', messageType: 'sensor_msgs/Temperature' })
+  .subscribe(msg => {
+    document.getElementById('t-temp').textContent = msg.temperature.toFixed(1) + ' °C';
   });
 
 new ROSLIB.Topic({ ros, name: '/joy_control_active', messageType: 'std_msgs/Bool' })
