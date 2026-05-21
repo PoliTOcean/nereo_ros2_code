@@ -1,0 +1,129 @@
+
+
+[2026-05-18 15:52:25] New autostart attempt started.
+[2026-05-18 15:52:25] Starting autostart script.
+[2026-05-18 15:52:25] ERROR: another autostart.sh is already running. Exiting.
+[2026-05-18 15:52:25] Stopping previous autostart terminals/processes...
+[2026-05-18 15:52:27] Lock still held. Killing processes using lock file...
+
+
+[2026-05-18 15:52:31] New autostart attempt started.
+[2026-05-18 15:52:31] Starting autostart script.
+[2026-05-18 15:52:31] Lock acquired.
+[2026-05-18 15:52:31] File 'gui_start.sh': found.
+[2026-05-18 15:52:31] File 'gui_start.sh': executable.
+[2026-05-18 15:52:31] File 'connect_and_run.sh': found.
+[2026-05-18 15:52:31] File 'connect_and_run.sh': executable.
+[2026-05-18 15:52:31] File 'install_ros.sh': found.
+[2026-05-18 15:52:31] File 'install_ros.sh': executable.
+[2026-05-18 15:52:31] Checking ROS installation...
+[2026-05-18 15:52:35] ROS installation check completed.
+[2026-05-18 15:52:35] Opening GUI terminal.
+[2026-05-18 15:52:35] Opening terminal 'ros_gui'.
+[2026-05-18 15:52:35] Opening connect terminal.
+[2026-05-18 15:52:35] Opening terminal 'connect_and_run'.
+[2026-05-18 15:52:35] Done. Two terminals should be open: GUI and Connect.
+[GUI_START] Launching GUI...
+[INFO] [launch]: All log files can be found below /home/dav_indo/.ros/log/2026-05-18-15-52-36-679726-ZenBook-di-DI-785
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [joy_node-1]: process started with pid [789]
+[INFO] [joy_to_cmdvel-2]: process started with pid [790]
+[INFO] [gui_node-3]: process started with pid [791]
+[INFO] [rosbridge_websocket-4]: process started with pid [792]
+[INFO] [web_server_node-5]: process started with pid [793]
+[INFO] [safety_node-6]: process started with pid [794]
+[safety_node-6] Traceback (most recent call last):
+[safety_node-6]   File "/home/dav_indo/nereo_ros2_code/gui_ws/install/web_pkg/lib/web_pkg/safety_node", line 33, in <module>
+[safety_node-6]     sys.exit(load_entry_point('web-pkg', 'console_scripts', 'safety_node')())
+[safety_node-6]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[safety_node-6]   File "/home/dav_indo/nereo_ros2_code/gui_ws/install/web_pkg/lib/web_pkg/safety_node", line 25, in importlib_load_entry_point
+[safety_node-6]     return next(matches).load()
+[safety_node-6]            ^^^^^^^^^^^^^^^^^^^^
+[safety_node-6]   File "/usr/lib/python3.12/importlib/metadata/__init__.py", line 205, in load
+[safety_node-6]     module = import_module(match.group('module'))
+[safety_node-6]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[safety_node-6]   File "/usr/lib/python3.12/importlib/__init__.py", line 90, in import_module
+[safety_node-6]     return _bootstrap._gcd_import(name[level:], package, level)
+[safety_node-6]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[safety_node-6]   File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+[safety_node-6]   File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+[safety_node-6]   File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+[safety_node-6]   File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+[safety_node-6]   File "<frozen importlib._bootstrap_external>", line 995, in exec_module
+[safety_node-6]   File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+[safety_node-6]   File "/home/dav_indo/nereo_ros2_code/gui_ws/build/web_pkg/web_pkg/safety_node.py", line 28, in <module>
+[safety_node-6]     from nereo_interfaces.msg import CommandVelocity
+[safety_node-6] ModuleNotFoundError: No module named 'nereo_interfaces'
+[ERROR] [safety_node-6]: process has died [pid 794, exit code 1, cmd '/home/dav_indo/nereo_ros2_code/gui_ws/install/web_pkg/lib/web_pkg/safety_node --ros-args -r __node:=safety_node'].
+[gui_node-3] Traceback (most recent call last):
+[gui_node-3]   File "/home/dav_indo/nereo_ros2_code/gui_ws/install/gui_pkg/lib/gui_pkg/gui_node", line 33, in <module>
+[gui_node-3]     sys.exit(load_entry_point('gui-pkg', 'console_scripts', 'gui_node')())
+[gui_node-3]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[gui_node-3]   File "/home/dav_indo/nereo_ros2_code/gui_ws/install/gui_pkg/lib/gui_pkg/gui_node", line 25, in importlib_load_entry_point
+[gui_node-3]     return next(matches).load()
+[gui_node-3]            ^^^^^^^^^^^^^^^^^^^^
+[gui_node-3]   File "/usr/lib/python3.12/importlib/metadata/__init__.py", line 205, in load
+[gui_node-3]     module = import_module(match.group('module'))
+[gui_node-3]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[gui_node-3]   File "/usr/lib/python3.12/importlib/__init__.py", line 90, in import_module
+[gui_node-3]     return _bootstrap._gcd_import(name[level:], package, level)
+[gui_node-3]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[gui_node-3]   File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+[gui_node-3]   File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+[gui_node-3]   File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+[gui_node-3]   File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+[gui_node-3]   File "<frozen importlib._bootstrap_external>", line 995, in exec_module
+[gui_node-3]   File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+[gui_node-3]   File "/home/dav_indo/nereo_ros2_code/gui_ws/build/gui_pkg/gui_pkg/gui_node.py", line 13, in <module>
+[gui_node-3]     from PyQt6.QtQml import QQmlApplicationEngine
+[gui_node-3] ModuleNotFoundError: No module named 'PyQt6.QtQml'
+[joy_to_cmdvel-2] Traceback (most recent call last):
+[joy_to_cmdvel-2]   File "/home/dav_indo/nereo_ros2_code/gui_ws/install/joystick_pkg/lib/joystick_pkg/joy_to_cmdvel", line 33, in <module>
+[joy_to_cmdvel-2]     sys.exit(load_entry_point('joystick-pkg', 'console_scripts', 'joy_to_cmdvel')())
+[joy_to_cmdvel-2]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[joy_to_cmdvel-2]   File "/home/dav_indo/nereo_ros2_code/gui_ws/install/joystick_pkg/lib/joystick_pkg/joy_to_cmdvel", line 25, in importlib_load_entry_point
+[joy_to_cmdvel-2]     return next(matches).load()
+[joy_to_cmdvel-2]            ^^^^^^^^^^^^^^^^^^^^
+[joy_to_cmdvel-2]   File "/usr/lib/python3.12/importlib/metadata/__init__.py", line 205, in load
+[joy_to_cmdvel-2]     module = import_module(match.group('module'))
+[joy_to_cmdvel-2]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[joy_to_cmdvel-2]   File "/usr/lib/python3.12/importlib/__init__.py", line 90, in import_module
+[joy_to_cmdvel-2]     return _bootstrap._gcd_import(name[level:], package, level)
+[joy_to_cmdvel-2]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[joy_to_cmdvel-2]   File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+[joy_to_cmdvel-2]   File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+[joy_to_cmdvel-2]   File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+[joy_to_cmdvel-2]   File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+[joy_to_cmdvel-2]   File "<frozen importlib._bootstrap_external>", line 995, in exec_module
+[joy_to_cmdvel-2]   File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+[joy_to_cmdvel-2]   File "/home/dav_indo/nereo_ros2_code/gui_ws/build/joystick_pkg/joystick_pkg/joy_to_cmdvel.py", line 7, in <module>
+[joy_to_cmdvel-2]     from nereo_interfaces.msg import CommandVelocity
+[joy_to_cmdvel-2] ModuleNotFoundError: No module named 'nereo_interfaces'
+[ERROR] [gui_node-3]: process has died [pid 791, exit code 1, cmd '/home/dav_indo/nereo_ros2_code/gui_ws/install/gui_pkg/lib/gui_pkg/gui_node --ros-args -r __node:=gui_node'].
+[ERROR] [joy_to_cmdvel-2]: process has died [pid 790, exit code 1, cmd '/home/dav_indo/nereo_ros2_code/gui_ws/install/joystick_pkg/lib/joystick_pkg/joy_to_cmdvel --ros-args -r __node:=joy_to_cmd_vel --params-file /tmp/launch_params_ssk7roxx'].
+[web_server_node-5] Traceback (most recent call last):
+[web_server_node-5]   File "/home/dav_indo/nereo_ros2_code/gui_ws/install/web_pkg/lib/web_pkg/web_server_node", line 33, in <module>
+[web_server_node-5]     sys.exit(load_entry_point('web-pkg', 'console_scripts', 'web_server_node')())
+[web_server_node-5]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[web_server_node-5]   File "/home/dav_indo/nereo_ros2_code/gui_ws/build/web_pkg/web_pkg/web_server_node.py", line 41, in main
+[web_server_node-5]     node = WebServerNode()
+[web_server_node-5]            ^^^^^^^^^^^^^^^
+[web_server_node-5]   File "/home/dav_indo/nereo_ros2_code/gui_ws/build/web_pkg/web_pkg/web_server_node.py", line 28, in __init__
+[web_server_node-5]     self._server = http.server.HTTPServer(('0.0.0.0', port), handler)
+[web_server_node-5]                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[web_server_node-5]   File "/usr/lib/python3.12/socketserver.py", line 457, in __init__
+[web_server_node-5]     self.server_bind()
+[web_server_node-5]   File "/usr/lib/python3.12/http/server.py", line 136, in server_bind
+[web_server_node-5]     socketserver.TCPServer.server_bind(self)
+[web_server_node-5]   File "/usr/lib/python3.12/socketserver.py", line 473, in server_bind
+[web_server_node-5]     self.socket.bind(self.server_address)
+[web_server_node-5] OSError: [Errno 98] Address already in use
+[ERROR] [web_server_node-5]: process has died [pid 793, exit code 1, cmd '/home/dav_indo/nereo_ros2_code/gui_ws/install/web_pkg/lib/web_pkg/web_server_node --ros-args -r __node:=web_server_node'].
+[rosbridge_websocket-4] [INFO] [1779112357.768057331] [rosbridge_websocket]: Rosbridge WebSocket server started on port 9090
+
+
+[2026-05-18 16:11:19] New autostart attempt started.
+[2026-05-18 16:11:19] Starting autostart script.
+[2026-05-18 16:11:19] ERROR: another autostart.sh is already running. Exiting.
+[2026-05-18 16:11:19] Stopping previous autostart terminals/processes...
+[2026-05-18 16:11:20] Lock still held. Killing processes using lock file...
