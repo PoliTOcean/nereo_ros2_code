@@ -23,30 +23,14 @@ ensure_python_tools() {
     fi
 }
 
-install_ros2() {
-    echo "Installing ROS2 Humble... (requires sudo)"
-    sudo apt update
-    sudo apt install -y software-properties-common curl gnupg
-    sudo add-apt-repository universe -y || true
-    sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-        -o /usr/share/keyrings/ros-archive-keyring.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
-          http://packages.ros.org/ros2/ubuntu \
-          $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | \
-    sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-    sudo apt update
-    sudo apt install -y ros-humble-ros-base ros-dev-tools
-}
-
 main() {
     if ! check_command ros2; then
-        echo "ROS2 not found — installing..."
-        install_ros2
+        echo "ROS2 not found."
     fi
 
     # Source ROS2
     set +u
-    source /opt/ros/humble/setup.bash
+    source /opt/ros/jazzy/setup.bash
     set -u
 
     ensure_python_tools
@@ -109,7 +93,7 @@ main() {
     # Crea la sessione con il primo pannello (usa i valori espansi direttamente)
     tmux -f /dev/null new-session -d -s $SESSION -n gui bash -c "
         source '$VENV_DIR/bin/activate' && \
-        source /opt/ros/humble/setup.bash && \
+        source /opt/ros/jazzy/setup.bash && \
         source '$SCRIPT_DIR/nereo_interfaces/install/setup.bash' && \
         source '$WS_DIR/install/setup.bash' && \
         ros2 run gui_pkg gui_node; \
@@ -125,7 +109,7 @@ main() {
     # Split verticale con il secondo nodo
     tmux split-window -h -t $SESSION:0 bash -c "
         source '$VENV_DIR/bin/activate' && \
-        source /opt/ros/humble/setup.bash && \
+        source /opt/ros/jazzy/setup.bash && \
         source '$SCRIPT_DIR/nereo_interfaces/install/setup.bash' && \
         source '$WS_DIR/install/setup.bash' && \
         ros2 run joystick_pkg joy_to_cmdvel; \
