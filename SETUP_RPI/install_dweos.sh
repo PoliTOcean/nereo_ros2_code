@@ -1,5 +1,5 @@
 #!/bin/bash
-# Usage: install_dweos.sh [all|configure|identify]
+# Usage: install_dweos.sh <all|configure|identify|autostart>
 set -e
 
 DWEOS_VERSION="v0.7.3"  # resolved commit c7aef48a; v0.7.4 has no release asset
@@ -17,7 +17,7 @@ STREAM_HEIGHT="720"
 STREAM_FPS="30"
 STREAM_ENCODE_TYPE="H264"
 SNAPSHOT_DIR="$(dirname "$0")/dweos_evidence"
-MODE="${1:-all}"
+MODE="${1:-}"
 
 # snapshot_system_state: writes pre-install OS/ROS/systemd facts to
 # SNAPSHOT_DIR; each write failure aborts before anything is installed.
@@ -263,10 +263,36 @@ JSON
         -d "$body"
 }
 
+# wait_for_api: blocks until the DWE OS device endpoint answers with at
+# least one camera, or gives up after roughly 60 seconds. Needed because the
+# service accepts connections before it has finished enumerating devices, so
+# a configure issued too early is answered for a device list that is still
+# empty.
+wait_for_api() {
+    local i count
+    for i in $(seq 1 60); do
+        count=$(curl -sS --max-time 2 \
+            "http://$DWEOS_API_HOST:$DWEOS_UI_PORT/api/devices" 2>/dev/null \
+            | python3 -c 'import json,sys
+try:
+    print(len(json.load(sys.stdin)))
+except Exception:
+    print(0)' 2>/dev/null)
+        if [ "${count:-0}" -gt 0 ]; then
+            return 0
+        fi
+        sleep 1
+    done
+    echo "wait_for_api: no cameras after 60s, configuring anyway"
+    return 0
+}
+
 # configure_all_streams: configures the UDP/H264 stream of all three cameras
 # from the recorded bus_info map, after refusing a destination port set that
 # is not three distinct ports or that collides with the DWE OS web UI.
 configure_all_streams() {
+    wait_for_api
+
     local ports="$MAIN_CAM_PORT $CAM_1_PORT $CAM_2_PORT"
     local p
 
@@ -320,12 +346,37 @@ identify_ports() {
     echo "  $0 configure"
 }
 
+# install_stream_autostart: writes a second dwe_os_2 drop-in that re-runs
+# this script's configure mode after the service starts. DWE OS saves each
+# stream with enabled true but does not restart the pipelines when the
+# service comes back, so without this the cameras go silent after every
+# reboot and every service restart, with the configuration still looking
+# correct in the API.
+install_stream_autostart() {
+    local override_dir="/etc/systemd/system/dwe_os_2.service.d"
+    local self
+    self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+
+    sudo mkdir -p "$override_dir" || {
+        echo "Cannot create $override_dir, exiting"
+        exit 1
+    }
+
+    printf '[Service]\nExecStartPost=-%s configure\n' "$self" \
+        | sudo tee "$override_dir/99-autostream.conf" > /dev/null
+
+    sudo systemctl daemon-reload
+    echo "Stream autostart installed. Streams now reconfigure themselves"
+    echo "after every start of dwe_os_2."
+}
+
 case "$MODE" in
 all)
     snapshot_system_state
     assert_network_available
     install_dweos
     apply_service_override
+    install_stream_autostart
     snapshot_post_install
     list_devices
     configure_all_streams
@@ -337,8 +388,11 @@ configure)
 identify)
     identify_ports
     ;;
+autostart)
+    install_stream_autostart
+    ;;
 *)
-    echo "Usage: $0 [all|configure|identify]"
+    echo "Usage: $0 <all|configure|identify|autostart>"
     exit 1
     ;;
 esac
