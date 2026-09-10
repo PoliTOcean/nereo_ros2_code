@@ -1,0 +1,208 @@
+Desired=Unknown/Install/Remove/Purge/Hold
+| Status=Not/Inst/Conf-files/Unpacked/halF-conf/Half-inst/trig-aWait/Trig-pend
+|/ Err?=(none)/Reinst-required (Status,Err: uppercase=bad)
+||/ Name                                             Version                          Architecture Description
++++-================================================-================================-============-=======================================================================================================================================================================
+ii  ros-build-essential                              1.0.1                            all          Packages expected when building any ROS package
+ii  ros-dev-tools                                    1.0.1                            all          Developer Tools for ROS
+ii  ros-jazzy-action-msgs                            2.0.2-2noble.20250424.140807     arm64        Messages and service definitions common among all ROS actions.
+ii  ros-jazzy-actionlib-msgs                         5.3.6-1noble.20250424.144129     arm64        A package containing some message definitions used in the implementation of ROS 1 actions.
+ii  ros-jazzy-ament-cmake                            2.5.4-1noble.20250424.104545     arm64        The entry point package for the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-auto                       2.5.4-1noble.20250424.110245     arm64        The auto-magic functions for ease to use of the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-copyright                  0.17.2-1noble.20250424.104702    arm64        The CMake API for ament_copyright to check every source file contains copyright reference.
+ii  ros-jazzy-ament-cmake-core                       2.5.4-1noble.20250424.101337     arm64        The core of the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-cppcheck                   0.17.2-1noble.20250424.104752    arm64        The CMake API for ament_cppcheck to perform static code analysis on C/C++ code using Cppcheck.
+ii  ros-jazzy-ament-cmake-cpplint                    0.17.2-1noble.20250424.104756    arm64        The CMake API for ament_cpplint to lint C / C++ code using cpplint.
+ii  ros-jazzy-ament-cmake-export-definitions         2.5.4-1noble.20250424.102923     arm64        The ability to export definitions to downstream packages in the ament buildsystem.
+ii  ros-jazzy-ament-cmake-export-dependencies        2.5.4-1noble.20250424.103918     arm64        The ability to export dependencies to downstream packages in the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-export-include-directories 2.5.4-1noble.20250424.102914     arm64        The ability to export include directories to downstream packages in the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-export-interfaces          2.5.4-1noble.20250424.103508     arm64        The ability to export interfaces to downstream packages in the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-export-libraries           2.5.4-1noble.20250424.102925     arm64        The ability to export libraries to downstream packages in the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-export-link-flags          2.5.4-1noble.20250424.103357     arm64        The ability to export link flags to downstream packages in the ament buildsystem.
+ii  ros-jazzy-ament-cmake-export-targets             2.5.4-1noble.20250424.103509     arm64        The ability to export targets to downstream packages in the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-flake8                     0.17.2-1noble.20250424.104842    arm64        The CMake API for ament_flake8 to check code syntax and style conventions with flake8.
+ii  ros-jazzy-ament-cmake-gen-version-h              2.5.4-1noble.20250424.103405     arm64        Generate a C header containing the version number of the package
+ii  ros-jazzy-ament-cmake-gmock                      2.5.4-1noble.20250424.105701     arm64        The ability to add Google mock-based tests in the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-gtest                      2.5.4-1noble.20250424.105059     arm64        The ability to add gtest-based tests in the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-include-directories        2.5.4-1noble.20250424.103409     arm64        The functionality to order include directories according to a chain of prefixes in the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-libraries                  2.5.4-1noble.20250424.103343     arm64        The functionality to deduplicate libraries in the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-lint-cmake                 0.17.2-1noble.20250424.105124    arm64        The CMake API for ament_lint_cmake to lint CMake code using cmakelint.
+ii  ros-jazzy-ament-cmake-pep257                     0.17.2-1noble.20250424.105137    arm64        The CMake API for ament_pep257 to check code against the docstring style conventions in PEP 257.
+ii  ros-jazzy-ament-cmake-pytest                     2.5.4-1noble.20250424.105243     arm64        The ability to run Python tests using pytest in the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-python                     2.5.4-1noble.20250424.103412     arm64        The ability to use Python in the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-ros                        0.12.0-3noble.20250424.110302    arm64        The ROS specific CMake bits in the ament buildsystem.
+ii  ros-jazzy-ament-cmake-target-dependencies        2.5.4-1noble.20250424.104001     arm64        The ability to add definitions, include directories and libraries of a package to a target in the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-test                       2.5.4-1noble.20250424.104004     arm64        The ability to add tests in the ament buildsystem in CMake.
+ii  ros-jazzy-ament-cmake-uncrustify                 0.17.2-1noble.20250424.120846    arm64        The CMake API for ament_uncrustify to check code against styleconventions using uncrustify.
+ii  ros-jazzy-ament-cmake-version                    2.5.4-1noble.20250424.103411     arm64        The ability to override the exported package version in the ament buildsystem.
+ii  ros-jazzy-ament-cmake-xmllint                    0.17.2-1noble.20250424.105306    arm64        The CMake API for ament_xmllint to check XML file using xmmlint.
+ii  ros-jazzy-ament-copyright                        0.17.2-1noble.20250424.103416    arm64        The ability to check source files for copyright and license information.
+ii  ros-jazzy-ament-cppcheck                         0.17.2-1noble.20250424.102823    arm64        The ability to perform static code analysis on C/C++ code using Cppcheck and generate xUnit test result files.
+ii  ros-jazzy-ament-cpplint                          0.17.2-1noble.20250424.102827    arm64        The ability to check code against the Google style conventions using cpplint and generate xUnit test result files.
+ii  ros-jazzy-ament-flake8                           0.17.2-1noble.20250424.103410    arm64        The ability to check code for style and syntax conventions with flake8.
+ii  ros-jazzy-ament-index-cpp                        1.8.1-1noble.20250424.105703     arm64        C++ API to access the ament resource index.
+ii  ros-jazzy-ament-index-python                     1.8.1-1noble.20250424.102833     arm64        Python API to access the ament resource index.
+ii  ros-jazzy-ament-lint                             0.17.2-1noble.20250424.102828    arm64        Providing common API for ament linter packages.
+ii  ros-jazzy-ament-lint-auto                        0.17.2-1noble.20250424.105344    arm64        The auto-magic functions for ease to use of the ament linters in CMake.
+ii  ros-jazzy-ament-lint-cmake                       0.17.2-1noble.20250424.102833    arm64        The ability to lint CMake code using cmakelint and generate xUnit test result files.
+ii  ros-jazzy-ament-lint-common                      0.17.2-1noble.20250424.121425    arm64        The list of commonly used linters in the ament build system in CMake.
+ii  ros-jazzy-ament-package                          0.16.4-1noble.20250406.073756    arm64        The parser for the manifest files in the ament buildsystem.
+ii  ros-jazzy-ament-pep257                           0.17.2-1noble.20250424.103420    arm64        The ability to check code against the docstring style conventions in PEP 257 and generate xUnit test result files.
+ii  ros-jazzy-ament-uncrustify                       0.17.2-1noble.20250424.120320    arm64        The ability to check code against style conventions using uncrustify and generate xUnit test result files.
+ii  ros-jazzy-ament-xmllint                          0.17.2-1noble.20250424.103425    arm64        The ability to check XML files like the package manifest using xmllint and generate xUnit test result files.
+ii  ros-jazzy-builtin-interfaces                     2.0.2-2noble.20250424.135025     arm64        A package containing message and service definitions for types defined in the OMG IDL Platform Specific Model.
+ii  ros-jazzy-class-loader                           2.7.0-3noble.20250424.112549     arm64        The class_loader package is a ROS-independent package for loading plugins during runtime and the foundation of the higher level ROS &quot;pluginlib&quot; library.
+ii  ros-jazzy-common-interfaces                      5.3.6-1noble.20250424.153934     arm64        common_interfaces contains messages and services that are widely used by other ROS packages.
+ii  ros-jazzy-composition-interfaces                 2.0.2-2noble.20250424.160439     arm64        A package containing message and service definitions for managing composable nodes in a container process.
+ii  ros-jazzy-console-bridge-vendor                  1.7.1-3noble.20250424.110150     arm64        Wrapper around console_bridge, providing nothing but a dependency on console_bridge, on some systems.
+ii  ros-jazzy-diagnostic-msgs                        5.3.6-1noble.20250424.150821     arm64        A package containing some diagnostics related message and service definitions.
+ii  ros-jazzy-domain-coordinator                     0.12.0-3noble.20250424.103449    arm64        A tool to coordinate unique ROS_DOMAIN_IDs across multiple processes
+ii  ros-jazzy-eigen3-cmake-module                    0.3.0-3noble.20250424.110552     arm64        Exports a custom CMake module to find Eigen3.
+ii  ros-jazzy-fastcdr                                2.2.5-1noble.20250424.103535     arm64        *eProsima Fast CDR* is a C++ serialization library implementing the Common Data Representation (CDR) mechanism defined by the Object Management Group (OMG) consortium.
+ii  ros-jazzy-fastrtps                               2.14.4-1noble.20250424.104322    arm64        *eprosima Fast DDS* (formerly Fast RTPS) is a C++ implementation of the DDS (Data Distribution Service) standard of the OMG (Object Management Group).
+ii  ros-jazzy-fastrtps-cmake-module                  3.6.1-1noble.20250424.112012     arm64        Provide CMake module to find eProsima FastRTPS.
+ii  ros-jazzy-foonathan-memory-vendor                1.3.1-3noble.20250424.103720     arm64        Foonathan/memory vendor package for Fast-RTPS.
+ii  ros-jazzy-geometry-msgs                          5.3.6-1noble.20250424.145451     arm64        A package containing some geometry related message definitions.
+ii  ros-jazzy-geometry2                              0.36.10-1noble.20250424.213547   arm64        A metapackage to bring in the default packages second generation Transform Library in ros, tf2.
+ii  ros-jazzy-gmock-vendor                           1.14.9000-2noble.20250424.104532 arm64        The package provides GoogleMock.
+ii  ros-jazzy-gtest-vendor                           1.14.9000-2noble.20250424.103946 arm64        The package provides GoogleTest.
+ii  ros-jazzy-kdl-parser                             2.11.0-3noble.20250424.130212    arm64        The Kinematics and Dynamics Library (KDL) defines a tree structure to represent the kinematic and dynamic parameters of a robot mechanism.
+ii  ros-jazzy-keyboard-handler                       0.3.1-2noble.20250424.112551     arm64        Handler for input from keyboard
+ii  ros-jazzy-launch                                 3.4.4-1noble.20250424.120656     arm64        The ROS launch tool.
+ii  ros-jazzy-launch-ros                             0.26.7-1noble.20250424.164102    arm64        ROS specific extensions to the launch tool.
+ii  ros-jazzy-launch-testing                         3.4.4-1noble.20250424.121847     arm64        A package to create tests which involve launch files and multiple processes.
+ii  ros-jazzy-launch-testing-ament-cmake             3.4.4-1noble.20250424.122410     arm64        A package providing cmake functions for running launch tests from the build.
+ii  ros-jazzy-launch-testing-ros                     0.26.7-1noble.20250424.165344    arm64        A package providing utilities for writing ROS2 enabled launch tests.
+ii  ros-jazzy-launch-xml                             3.4.4-1noble.20250424.121214     arm64        XML frontend for the launch package.
+ii  ros-jazzy-launch-yaml                            3.4.4-1noble.20250424.121326     arm64        YAML frontend for the launch package.
+ii  ros-jazzy-liblz4-vendor                          0.26.7-1noble.20250424.112724    arm64        LZ4 compression vendor package, providing a dependency for LZ4.
+ii  ros-jazzy-libstatistics-collector                1.7.4-1noble.20250424.161524     arm64        Lightweight aggregation utilities to collect statistics and measure message metrics.
+ii  ros-jazzy-libyaml-vendor                         1.6.3-2noble.20250424.113155     arm64        Vendored version of libyaml.
+ii  ros-jazzy-lifecycle-msgs                         2.0.2-2noble.20250424.143208     arm64        A package containing some lifecycle related message and service definitions.
+ii  ros-jazzy-mcap-vendor                            0.26.7-1noble.20250424.121027    arm64        mcap vendor package
+ii  ros-jazzy-message-filters                        4.11.5-1noble.20250424.163347    arm64        A set of ROS 2 message filters which take in messages and may output those messages at a later time, based on the conditions that filter needs met.
+ii  ros-jazzy-nav-msgs                               5.3.6-1noble.20250424.150855     arm64        A package containing some navigation related message and service definitions.
+ii  ros-jazzy-orocos-kdl-vendor                      0.5.1-2noble.20250424.111500     arm64        Wrapper around orocos_kdl, providing nothing but a dependency on orocos_kdl on some systems.
+ii  ros-jazzy-osrf-pycommon                          2.1.6-1noble.20250424.104121     arm64        Commonly needed Python modules, used by Python software developed at OSRF.
+ii  ros-jazzy-pluginlib                              5.4.2-2noble.20250424.120136     arm64        The pluginlib package provides tools for writing and dynamically loading plugins using the ROS build infrastructure.
+ii  ros-jazzy-pybind11-vendor                        3.1.3-1noble.20250424.114157     arm64        Wrapper around pybind11.
+ii  ros-jazzy-python-cmake-module                    0.11.1-2noble.20250424.114158    arm64        Provide CMake module with extra functionality for Python.
+ii  ros-jazzy-python-orocos-kdl-vendor               0.5.1-2noble.20250424.114825     arm64        Wrapper around PyKDL, providing nothing but a dependency on PyKDL on some systems.
+ii  ros-jazzy-rcl                                    9.2.5-1noble.20250424.160404     arm64        The ROS client library common implementation.
+ii  ros-jazzy-rcl-action                             9.2.5-1noble.20250424.161551     arm64        Package containing a C-based ROS action implementation
+ii  ros-jazzy-rcl-interfaces                         2.0.2-2noble.20250424.154900     arm64        The ROS client library common interfaces.
+ii  ros-jazzy-rcl-lifecycle                          9.2.5-1noble.20250424.161516     arm64        Package containing a C-based lifecycle implementation
+ii  ros-jazzy-rcl-logging-interface                  3.1.1-1noble.20250424.112004     arm64        Interface that rcl_logging backends needs to implement.
+ii  ros-jazzy-rcl-logging-spdlog                     3.1.1-1noble.20250424.115723     arm64        Implementation of rcl_logging API for an spdlog backend.
+ii  ros-jazzy-rcl-yaml-param-parser                  9.2.5-1noble.20250424.121053     arm64        Parse a YAML parameter file and populate the C data structure.
+ii  ros-jazzy-rclcpp                                 28.1.9-1noble.20250424.162110    arm64        The ROS client library in C++.
+ii  ros-jazzy-rclcpp-action                          28.1.9-1noble.20250424.163522    arm64        Adds action APIs for C++.
+ii  ros-jazzy-rclcpp-components                      28.1.9-1noble.20250424.171006    arm64        Package containing tools for dynamically loadable components
+ii  ros-jazzy-rclcpp-lifecycle                       28.1.9-1noble.20250424.171622    arm64        Package containing a prototype for lifecycle implementation
+ii  ros-jazzy-rclpy                                  7.1.4-1noble.20250424.162120     arm64        Package containing the Python client.
+ii  ros-jazzy-rcpputils                              2.11.2-1noble.20250424.111952    arm64        Package containing utility code for C++.
+ii  ros-jazzy-rcutils                                6.7.2-1noble.20250424.111343     arm64        Package containing various utility types and functions for C
+ii  ros-jazzy-rmw                                    7.3.2-1noble.20250424.120438     arm64        Contains the ROS middleware API.
+un  ros-jazzy-rmw-connextdds                         <none>                           <none>       (no description available)
+un  ros-jazzy-rmw-cyclonedds-cpp                     <none>                           <none>       (no description available)
+ii  ros-jazzy-rmw-dds-common                         3.1.0-2noble.20250424.143242     arm64        Define a common interface between DDS implementations of ROS middleware.
+ii  ros-jazzy-rmw-fastrtps-cpp                       8.4.2-1noble.20250424.153715     arm64        Implement the ROS middleware interface using eProsima FastRTPS static code generation in C++.
+ii  ros-jazzy-rmw-fastrtps-shared-cpp                8.4.2-1noble.20250424.150143     arm64        Code shared on static and dynamic type support of rmw_fastrtps_cpp.
+ii  ros-jazzy-rmw-implementation                     2.15.5-1noble.20250424.154521    arm64        Proxy implementation of the ROS 2 Middleware Interface.
+ii  ros-jazzy-rmw-implementation-cmake               7.3.2-1noble.20250424.114519     arm64        CMake functions which can discover and enumerate available implementations.
+ii  ros-jazzy-robot-state-publisher                  3.3.3-3noble.20250424.173015     arm64        This package take the joint angles of a robot as input, and publishes the 3D poses of the robot links to tf2, using a kinematic tree model of the robot.
+ii  ros-jazzy-ros-base                               0.11.0-1noble.20250424.214128    arm64        A package which extends 'ros_core' and includes other basic functionalities like tf2 and urdf.
+ii  ros-jazzy-ros-core                               0.11.0-1noble.20250424.173130    arm64        A package to aggregate the packages required to use publish / subscribe, services, generate messages and other core ROS concepts.
+ii  ros-jazzy-ros-environment                        4.2.1-1noble.20250424.102926     arm64        The package provides the environment variables `ROS_VERSION` and `ROS_DISTRO`.
+ii  ros-jazzy-ros-workspace                          1.0.3-7noble.20250424.101846     arm64        Provides the prefix level environment files for ROS 2 packages.
+ii  ros-jazzy-ros2action                             0.32.4-1noble.20250424.164734    arm64        The action command for ROS 2 command line tools.
+ii  ros-jazzy-ros2bag                                0.26.7-1noble.20250424.210459    arm64        Entry point for rosbag in ROS 2
+ii  ros-jazzy-ros2cli                                0.32.4-1noble.20250424.164152    arm64        Framework for ROS 2 command line tools.
+ii  ros-jazzy-ros2cli-common-extensions              0.3.0-3noble.20250424.172541     arm64        Meta package for ros2cli common extensions
+ii  ros-jazzy-ros2component                          0.32.4-1noble.20250424.171911    arm64        The component command for ROS 2 command line tools.
+ii  ros-jazzy-ros2doctor                             0.32.4-1noble.20250424.164737    arm64        A command line tool to check potential issues in a ROS 2 system
+ii  ros-jazzy-ros2interface                          0.32.4-1noble.20250424.164755    arm64        The interface command for ROS 2 command line tools
+ii  ros-jazzy-ros2launch                             0.26.7-1noble.20250424.165413    arm64        The launch command for ROS 2 command line tools.
+ii  ros-jazzy-ros2lifecycle                          0.32.4-1noble.20250424.165444    arm64        The lifecycle command for ROS 2 command line tools.
+ii  ros-jazzy-ros2multicast                          0.32.4-1noble.20250424.164838    arm64        The multicast command for ROS 2 command line tools.
+ii  ros-jazzy-ros2node                               0.32.4-1noble.20250424.164748    arm64        The node command for ROS 2 command line tools.
+ii  ros-jazzy-ros2param                              0.32.4-1noble.20250424.165556    arm64        The param command for ROS 2 command line tools.
+ii  ros-jazzy-ros2pkg                                0.32.4-1noble.20250424.164808    arm64        The pkg command for ROS 2 command line tools.
+ii  ros-jazzy-ros2run                                0.32.4-1noble.20250424.165400    arm64        The run command for ROS 2 command line tools.
+ii  ros-jazzy-ros2service                            0.32.4-1noble.20250424.164915    arm64        The service command for ROS 2 command line tools.
+ii  ros-jazzy-ros2topic                              0.32.4-1noble.20250424.164838    arm64        The topic command for ROS 2 command line tools.
+ii  ros-jazzy-rosbag2                                0.26.7-1noble.20250424.211138    arm64        Meta package for rosbag2 related packages
+ii  ros-jazzy-rosbag2-compression                    0.26.7-1noble.20250424.194938    arm64        Compression implementations for rosbag2 bags and messages.
+ii  ros-jazzy-rosbag2-compression-zstd               0.26.7-1noble.20250424.204058    arm64        Zstandard compression library implementation of rosbag2_compression
+ii  ros-jazzy-rosbag2-cpp                            0.26.7-1noble.20250424.193712    arm64        C++ ROSBag2 client library
+ii  ros-jazzy-rosbag2-interfaces                     0.26.7-1noble.20250424.155451    arm64        Interface definitions for controlling rosbag2
+ii  ros-jazzy-rosbag2-py                             0.26.7-1noble.20250424.205027    arm64        Python API for rosbag2
+ii  ros-jazzy-rosbag2-storage                        0.26.7-1noble.20250424.192906    arm64        ROS2 independent storage format to store serialized ROS2 messages
+ii  ros-jazzy-rosbag2-storage-default-plugins        0.26.7-1noble.20250424.195204    arm64        Intermediate metapackage to point at default storage plugin(s) for rosbag2
+ii  ros-jazzy-rosbag2-storage-mcap                   0.26.7-1noble.20250424.193852    arm64        rosbag2 storage plugin using the MCAP file format
+ii  ros-jazzy-rosbag2-storage-sqlite3                0.26.7-1noble.20250424.193845    arm64        ROSBag2 SQLite3 storage plugin
+ii  ros-jazzy-rosbag2-transport                      0.26.7-1noble.20250424.203948    arm64        Layer encapsulating ROS middleware to allow rosbag2 to be used with or without middleware
+ii  ros-jazzy-rosgraph-msgs                          2.0.2-2noble.20250424.142510     arm64        Messages relating to the ROS Computation Graph.
+ii  ros-jazzy-rosidl-adapter                         4.6.5-1noble.20250424.122210     arm64        API and scripts to parse .msg/.srv/.action files and convert them to .idl.
+ii  ros-jazzy-rosidl-cli                             4.6.5-1noble.20250424.121639     arm64        Command line tools for ROS interface generation.
+ii  ros-jazzy-rosidl-cmake                           4.6.5-1noble.20250424.124755     arm64        The CMake functionality to invoke code generation for ROS interface files.
+ii  ros-jazzy-rosidl-core-generators                 0.2.0-3noble.20250424.134511     arm64        A configuration package defining core ROS interface generators.
+ii  ros-jazzy-rosidl-core-runtime                    0.2.0-3noble.20250424.134511     arm64        A configuration package defining runtime dependencies for core ROS interfaces.
+ii  ros-jazzy-rosidl-default-generators              1.6.0-3noble.20250424.141919     arm64        A configuration package defining the default ROS interface generators.
+ii  ros-jazzy-rosidl-default-runtime                 1.6.0-3noble.20250424.141913     arm64        A configuration package defining the runtime for the ROS interfaces.
+ii  ros-jazzy-rosidl-dynamic-typesupport             0.1.2-3noble.20250424.115810     arm64        Unified serialization support interface for dynamic typesupport in C.
+ii  ros-jazzy-rosidl-dynamic-typesupport-fastrtps    0.1.0-3noble.20250424.120439     arm64        FastDDS serialization support implementation for use with C/C++.
+ii  ros-jazzy-rosidl-generator-c                     4.6.5-1noble.20250424.125908     arm64        Generate the ROS interfaces in C.
+ii  ros-jazzy-rosidl-generator-cpp                   4.6.5-1noble.20250424.131020     arm64        Generate the ROS interfaces in C++.
+ii  ros-jazzy-rosidl-generator-py                    0.22.1-1noble.20250424.132256    arm64        Generate the ROS interfaces in Python.
+ii  ros-jazzy-rosidl-generator-type-description      4.6.5-1noble.20250424.123829     arm64        Generate hashes and descriptions of ROS 2 interface types, per REP-2011.
+ii  ros-jazzy-rosidl-parser                          4.6.5-1noble.20250424.122736     arm64        The parser for `.idl` ROS interface files.
+ii  ros-jazzy-rosidl-pycommon                        4.6.5-1noble.20250424.123744     arm64        Common Python functions used by rosidl packages.
+ii  ros-jazzy-rosidl-runtime-c                       4.6.5-1noble.20250424.115150     arm64        Provides definitions, initialization and finalization functions, and macros for getting and working with rosidl typesupport types in C.
+ii  ros-jazzy-rosidl-runtime-cpp                     4.6.5-1noble.20250424.115844     arm64        Provides definitions and templated functions for getting and working with rosidl typesupport types in C++.
+ii  ros-jazzy-rosidl-runtime-py                      0.13.1-2noble.20250424.123734    arm64        Runtime utilities for working with generated ROS interfaces in Python.
+ii  ros-jazzy-rosidl-typesupport-c                   3.2.2-1noble.20250424.131521     arm64        Generate the type support for C messages.
+ii  ros-jazzy-rosidl-typesupport-cpp                 3.2.2-1noble.20250424.133334     arm64        Generate the type support for C++ messages.
+ii  ros-jazzy-rosidl-typesupport-fastrtps-c          3.6.1-1noble.20250424.133401     arm64        Generate the C interfaces for eProsima FastRTPS.
+ii  ros-jazzy-rosidl-typesupport-fastrtps-cpp        3.6.1-1noble.20250424.132310     arm64        Generate the C++ interfaces for eProsima FastRTPS.
+ii  ros-jazzy-rosidl-typesupport-interface           4.6.5-1noble.20250424.114544     arm64        The interface for rosidl typesupport packages.
+ii  ros-jazzy-rosidl-typesupport-introspection-c     4.6.5-1noble.20250424.130945     arm64        Generate the message type support for dynamic message construction in C.
+ii  ros-jazzy-rosidl-typesupport-introspection-cpp   4.6.5-1noble.20250424.132247     arm64        Generate the message type support for dynamic message construction in C++.
+ii  ros-jazzy-rpyutils                               0.4.1-3noble.20250424.121734     arm64        Package containing various utility types and functions for Python
+ii  ros-jazzy-sensor-msgs                            5.3.6-1noble.20250424.151138     arm64        A package containing some sensor data related message and service definitions.
+ii  ros-jazzy-sensor-msgs-py                         5.3.6-1noble.20250424.153211     arm64        A package for easy creation and reading of PointCloud2 messages in Python.
+ii  ros-jazzy-service-msgs                           2.0.2-2noble.20250424.135609     arm64        Messages definitions common among all ROS services
+ii  ros-jazzy-shape-msgs                             5.3.6-1noble.20250424.153255     arm64        A package containing some message definitions which describe geometric shapes.
+ii  ros-jazzy-spdlog-vendor                          1.6.1-1noble.20250424.115134     arm64        Wrapper around spdlog, providing nothing but a dependency on spdlog, on some systems.
+ii  ros-jazzy-sqlite3-vendor                         0.26.7-1noble.20250424.115251    arm64        SQLite 3 vendor package
+ii  ros-jazzy-sros2                                  0.13.3-1noble.20250424.170040    arm64        Command line tools for managing SROS2 keys
+ii  ros-jazzy-sros2-cmake                            0.13.3-1noble.20250424.170841    arm64        CMake macros to configure security
+ii  ros-jazzy-statistics-msgs                        2.0.2-2noble.20250424.143134     arm64        Message definitions for reporting statistics for topics and system resources.
+ii  ros-jazzy-std-msgs                               5.3.6-1noble.20250424.143143     arm64        A package containing some standard message definitions.
+ii  ros-jazzy-std-srvs                               5.3.6-1noble.20250424.143623     arm64        A package containing some standard service definitions.
+ii  ros-jazzy-stereo-msgs                            5.3.6-1noble.20250424.153251     arm64        A package containing some stereo camera related message definitions.
+ii  ros-jazzy-tf2                                    0.36.10-1noble.20250424.150352   arm64        tf2 is the second generation of the transform library, which lets the user keep track of multiple coordinate frames over time.
+ii  ros-jazzy-tf2-bullet                             0.36.10-1noble.20250424.172751   arm64        tf2_bullet
+ii  ros-jazzy-tf2-eigen                              0.36.10-1noble.20250424.172830   arm64        tf2_eigen
+ii  ros-jazzy-tf2-eigen-kdl                          0.36.10-1noble.20250424.151022   arm64        Conversion functions between: - Eigen and KDL
+ii  ros-jazzy-tf2-geometry-msgs                      0.36.10-1noble.20250424.172830   arm64        tf2_geometry_msgs
+ii  ros-jazzy-tf2-kdl                                0.36.10-1noble.20250424.172809   arm64        KDL binding for tf2
+ii  ros-jazzy-tf2-msgs                               0.36.10-1noble.20250424.150420   arm64        tf2_msgs
+ii  ros-jazzy-tf2-py                                 0.36.10-1noble.20250424.162947   arm64        The tf2_py package
+ii  ros-jazzy-tf2-ros                                0.36.10-1noble.20250424.171845   arm64        This package contains the C++ ROS bindings for the tf2 library
+ii  ros-jazzy-tf2-ros-py                             0.36.10-1noble.20250424.163643   arm64        This package contains the ROS Python bindings for the tf2 library
+ii  ros-jazzy-tf2-sensor-msgs                        0.36.10-1noble.20250424.173022   arm64        Small lib to transform sensor_msgs with tf.
+ii  ros-jazzy-tf2-tools                              0.36.10-1noble.20250424.164226   arm64        tf2_tools
+ii  ros-jazzy-tinyxml2-vendor                        0.9.1-3noble.20250424.115544     arm64        Wrapper around tinyxml2, providing nothing but a dependency on tinyxml2, on some systems.
+ii  ros-jazzy-tracetools                             8.2.3-1noble.20250424.111412     arm64        Tracing wrapper for ROS 2.
+ii  ros-jazzy-trajectory-msgs                        5.3.6-1noble.20250424.151123     arm64        A package containing some robot trajectory message definitions.
+ii  ros-jazzy-type-description-interfaces            2.0.2-2noble.20250424.140815     arm64        A package containing message and service definitions for describing and communicating descriptions of other types.
+ii  ros-jazzy-uncrustify-vendor                      3.0.1-1noble.20250424.115736     arm64        Wrapper around uncrustify, providing nothing but a dependency on uncrustify, on some systems.
+ii  ros-jazzy-unique-identifier-msgs                 2.5.0-3noble.20250424.135024     arm64        ROS messages for universally unique identifiers.
+ii  ros-jazzy-urdf                                   2.10.0-3noble.20250424.125020    arm64        This package contains a C++ parser for the Unified Robot Description Format (URDF), which is an XML format for representing a robot model.
+ii  ros-jazzy-urdf-parser-plugin                     2.10.0-3noble.20250424.123805    arm64        This package contains a C++ base class for URDF parsers.
+ii  ros-jazzy-urdfdom                                4.0.1-1noble.20250424.123845     arm64        A library to access URDFs using the DOM model.
+ii  ros-jazzy-urdfdom-headers                        1.1.2-1noble.20250424.122727     arm64        C++ headers for URDF.
+ii  ros-jazzy-visualization-msgs                     5.3.6-1noble.20250424.152638     arm64        A package containing some visualization and interaction related message definitions.
+ii  ros-jazzy-yaml-cpp-vendor                        9.0.1-1noble.20250424.120203     arm64        Wrapper around yaml-cpp, it provides a fixed CMake module and an ExternalProject build of it.
+ii  ros-jazzy-zstd-vendor                            0.26.7-1noble.20250424.120404    arm64        Zstd compression vendor package, providing a dependency for Zstd.

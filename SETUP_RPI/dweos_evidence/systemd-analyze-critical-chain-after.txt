@@ -1,0 +1,16 @@
+The time when unit became active or started is printed after the "@" character.
+The time the unit took to start is printed after the "+" character.
+
+graphical.target @56.919s
+└─multi-user.target @56.919s
+  └─rpi-eeprom-update.service @18.723s +16.189s
+    └─basic.target @18.517s
+      └─sockets.target @18.517s
+        └─snapd.socket @18.512s +3ms
+          └─sysinit.target @18.496s
+            └─cloud-init.service @17.854s +640ms
+              └─cloud-init-local.service @11.996s +5.845s
+                └─systemd-remount-fs.service @2.566s +107ms
+                  └─systemd-journald.socket @2.158s
+                    └─system.slice @1.907s
+                      └─-.slice @1.907s
