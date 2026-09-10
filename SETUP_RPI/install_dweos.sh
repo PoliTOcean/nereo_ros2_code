@@ -291,8 +291,6 @@ except Exception:
 # from the recorded bus_info map, after refusing a destination port set that
 # is not three distinct ports or that collides with the DWE OS web UI.
 configure_all_streams() {
-    wait_for_api
-
     local ports="$MAIN_CAM_PORT $CAM_1_PORT $CAM_2_PORT"
     local p
 
@@ -378,10 +376,12 @@ all)
     apply_service_override
     install_stream_autostart
     snapshot_post_install
+    wait_for_api
     list_devices
     configure_all_streams
     ;;
 configure)
+    wait_for_api
     list_devices
     configure_all_streams
     ;;
