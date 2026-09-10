@@ -109,6 +109,56 @@ the vehicle's front-facing "main" camera — it plays the `main_cam` role
 (port 5001) for this proof only, per the plan's "one exploreHD" scope. Final
 physical assignment is out of scope for this task.
 
+## Stream Configuration Does Not Survive a Power Cycle
+
+Checked on 2026-09-10, on a Pi brought up from cold with the vehicle
+battery reconnected, before anything was started by hand.
+
+`dwe_os_2` came back active on its own and enumerated all three exploreHD
+units correctly. Their stream configuration did not come back with them.
+All three report:
+
+```
+"stream": { "encode_type": "H264", "stream_type": "UDP",
+            "endpoints": [], "enabled": false }
+```
+
+The `main_cam` endpoint configured in the previous session, H264 to
+10.0.0.69:5001, is gone. So is `is_managed`, which reads `false` on all
+three.
+
+**Operational consequence:** `./install_dweos.sh configure` has to be run
+after every boot of the vehicle. Since the battery is disconnected
+between sessions, that means every session. This is the strongest
+argument yet for giving the Pi a systemd unit that runs the configure
+step at startup, which today it does not have for anything.
+
+Two things did survive, and are worth separating from the above:
+
+- The service itself is enabled and starts unattended.
+- The two vendor patches held. `string3` reads `"exploreHD USB Camera"`
+  on all three devices rather than null, which is why the vendor web UI
+  renders. The vendor installer was not re-run, so this only proves the
+  patches persist across a reboot, not across a reinstall.
+
+### H.264 device nodes, read back after the power cycle
+
+Each exploreHD exposes four `/dev/videoN` nodes and only one of them
+advertises H264. Confirmed for all three units this time, where the
+previous session had only checked the first:
+
+| bus_info | H264 node | all nodes |
+|---|---|---|
+| usb-xhci-hcd.0-2 | /dev/video2 | video0-3 |
+| usb-xhci-hcd.1-1 | /dev/video6 | video4-7 |
+| usb-xhci-hcd.1-2 | /dev/video10 | video8-11 |
+
+These are the device paths `stream_cam.sh` needs for the rollback. The
+first node of each group is MJPG and YUYV only, and a rollback aimed at
+it fails to negotiate.
+
+Recorded: 2026-09-10
+
 ## Receive-Side Parity
 
 No receive-side edit was required, and that absence is the point.
