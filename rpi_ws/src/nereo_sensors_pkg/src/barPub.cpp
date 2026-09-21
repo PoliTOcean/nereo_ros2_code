@@ -54,11 +54,31 @@ void PublisherBAR::timer_callback()
     }
     diagnostic_message.status.push_back(diagnostic_status);
 
+    /*
+     * The diagnostic always goes out -- it is how a dead sensor is
+     * reported. The four data topics do not: on a failed read
+     * ms5837_basic_read leaves the globals holding the previous
+     * sample, and publishing that with a fresh header.stamp tells
+     * every consumer a stale value is current.
+     *
+     * The flight controller judges freshness by message arrival, so
+     * publishing through a failure made its freshness contract blind
+     * to a dead sensor: it would detect a dead publisher but never a
+     * dead barometer. Observed on the bench 2026-09-21 --
+     * /pressure_data_valid stayed true with the sensor physically
+     * unplugged while barometer_diagnostic already read ERROR.
+     * Staying silent is what makes the contract work as designed.
+     */
+    diagnostic_publisher_->publish(diagnostic_message);
+
+    if (has_error) {
+        return;
+    }
+
     temperature_publisher_->publish(temperature_message);
     pressure_publisher_->publish(pressure_message);
     depth_salt_publisher_->publish(depth_salt_message);
     depth_fresh_publisher_->publish(depth_fresh_message);
-    diagnostic_publisher_->publish(diagnostic_message);
 }
 
 void PublisherBAR::reset_reference_callback(
