@@ -101,8 +101,8 @@ void PublisherIMU::timer_callback()
 
     // READ — angles → quaternion
     imu_angle_error = WT61P_read_angle();
-    // IMU is mounted upside-down: negate all axes. setRPY expects (roll, pitch, yaw).
-    Vec3 angles = { -WT61P_get_roll(), -WT61P_get_pitch(), -WT61P_get_yaw() };
+    // IMU is mounted upside-down: negate all axes. Swap roll/pitch to match ROS convention.
+    Vec3 angles = { -WT61P_get_pitch(), -WT61P_get_roll(), -WT61P_get_yaw() };
     push_window(angles_window, angles);
 
     tf2::Quaternion tf2_quat;
@@ -112,7 +112,11 @@ void PublisherIMU::timer_callback()
         angles.z * (M_PI / 180.0)
     );
     tf2_quat.normalize();
-    imu_data_message.orientation = tf2::toMsg(tf2_quat);
+
+    // Apply zeroing offset (set by imu_reset_reference service)
+    tf2::Quaternion published_quat = reference_orientation_.inverse() * tf2_quat;
+    published_quat.normalize();
+    imu_data_message.orientation = tf2::toMsg(published_quat);
 
     // COVARIANCE
     GetCovarianceMatrix(acceleration_window,    &matrix);
@@ -172,6 +176,34 @@ void PublisherIMU::timer_callback()
     imu_data_publisher_->publish(imu_data_message);
 }
 
+// ── reset reference service ───────────────────────────────────────────────
+
+void PublisherIMU::reset_reference_callback(
+    const std_srvs::srv::Trigger::Request::SharedPtr,
+    std_srvs::srv::Trigger::Response::SharedPtr response)
+{
+    if (imu_angle_error) {
+        response->success = false;
+        response->message = "Failed to read IMU angles";
+        return;
+    }
+    // Re-read current angles so the reference is the most up-to-date sample
+    Vec3 angles = { -WT61P_get_pitch(), -WT61P_get_roll(), -WT61P_get_yaw() };
+    tf2::Quaternion q;
+    q.setRPY(
+        angles.x * (M_PI / 180.0),
+        angles.y * (M_PI / 180.0),
+        angles.z * (M_PI / 180.0)
+    );
+    q.normalize();
+    reference_orientation_ = q;
+    RCLCPP_INFO(this->get_logger(),
+        "Reference orientation reset to roll=%.2f pitch=%.2f yaw=%.2f (deg)",
+        angles.x, angles.y, angles.z);
+    response->success = true;
+    response->message = "Reference orientation reset";
+}
+
 // ── constructor ───────────────────────────────────────────────────────────
 
 PublisherIMU::PublisherIMU(): Node("imu_publisher")
@@ -182,6 +214,11 @@ PublisherIMU::PublisherIMU(): Node("imu_publisher")
         "imu_diagnostic", getSensorQoS());
 
     timer_ = this->create_wall_timer(200ms, std::bind(&PublisherIMU::timer_callback, this));
+
+    reset_reference_srv_ = this->create_service<std_srvs::srv::Trigger>(
+        "imu_reset_reference",
+        std::bind(&PublisherIMU::reset_reference_callback, this,
+                  std::placeholders::_1, std::placeholders::_2));
 
     if (WT61P_begin(i2c_device, WT61P_IIC_ADDR) != 0)
         RCLCPP_ERROR(this->get_logger(), "WT61P_begin failed on %s", i2c_device);

@@ -30,3 +30,4 @@ unit_tests/barometer_unit_test/libiic.a
 # Python bytecode cache directories
 __pycache__/
 **/__pycache__/
+SETUP_RPI/dweos_evidence/

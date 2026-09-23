@@ -13,6 +13,7 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -70,20 +71,22 @@ target_link_libraries(imu_pub
   wit_c_sdk
 )
 
-ament_target_dependencies(imu_pub 
-	rclcpp 
-	std_msgs 
+ament_target_dependencies(imu_pub
+	rclcpp
+	std_msgs
 	sensor_msgs
 	diagnostic_msgs
+	std_srvs
   tf2
   geometry_msgs
   tf2_geometry_msgs
 )
-ament_target_dependencies(barometer_pub 
-	rclcpp 
-	std_msgs 
-	sensor_msgs 
+ament_target_dependencies(barometer_pub
+	rclcpp
+	std_msgs
+	sensor_msgs
 	diagnostic_msgs
+	std_srvs
 )
 
 install(TARGETS

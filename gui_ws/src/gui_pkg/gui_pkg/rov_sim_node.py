@@ -5,6 +5,7 @@ import subprocess
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, FluidPressure, Joy
+from std_msgs.msg import Float32
 from std_msgs.msg import Bool
 
 CAM_PIPELINES = [
@@ -20,8 +21,10 @@ class RovSimNode(Node):
 
         self.declare_parameter('simulate_cameras', True)
 
-        self._imu_pub  = self.create_publisher(Imu,           'imu_data',            10)
-        self._baro_pub = self.create_publisher(FluidPressure, 'barometer_pressure',   10)
+        self._imu_pub   = self.create_publisher(Imu,           'imu_data',             10)
+        self._baro_pub  = self.create_publisher(FluidPressure, 'barometer_pressure',   10)
+        self._depth_pub = self.create_publisher(Float32,       'barometer_depth_salt', 10)
+        self._temp_pub  = self.create_publisher(Float32,        'barometer_temperature',10)
         self._joy_pub  = self.create_publisher(Joy,           'joy',                  10)
         self._armed_pub = self.create_publisher(Bool, '/rov_armed', 10)
         self.create_subscription(Bool, '/set_arm_mode', self._handle_arm, 10)
@@ -105,6 +108,14 @@ class RovSimNode(Node):
         baro = FluidPressure()
         baro.fluid_pressure = depth * 9806.65 + 101325.0 + random.uniform(-20.0, 20.0)
         self._baro_pub.publish(baro)
+
+        depth_msg = Float32()
+        depth_msg.data = depth + random.uniform(-0.01, 0.01)
+        self._depth_pub.publish(depth_msg)
+
+        temp_msg = Float32()
+        temp_msg.data = 22.0 + math.sin(self._t * 0.05) * 2.0 + random.uniform(-0.1, 0.1)
+        self._temp_pub.publish(temp_msg)
 
     # ── cleanup ───────────────────────────────────────────────────────────
 

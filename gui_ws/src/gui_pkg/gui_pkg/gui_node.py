@@ -25,8 +25,11 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from tf_transformations import euler_from_quaternion
-from sensor_msgs.msg import Imu, FluidPressure, Joy
-from std_msgs.msg import Float32, Int32, Float32MultiArray, Bool
+from sensor_msgs.msg import Imu, Joy
+from std_msgs.msg import Float32, Int32, Float32MultiArray, Bool, Float64MultiArray
+from std_srvs.srv import Trigger
+from rcl_interfaces.msg import ParameterType, ParameterValue, Parameter as ParameterMsg
+from rcl_interfaces.srv import GetParameters, SetParameters
 from . import PoliciesUtils
 
 
@@ -319,6 +322,7 @@ class ROSQmlBridge(QObject):
     pitch_changed = pyqtSignal(float)
     yaw_changed = pyqtSignal(float)
     depth_changed = pyqtSignal(float)
+    temperature_changed = pyqtSignal(float)
     joy_status_changed     = pyqtSignal(bool)
     rov_armed_changed      = pyqtSignal(bool)
     rov_connected_changed  = pyqtSignal(bool)
@@ -332,6 +336,7 @@ class ROSQmlBridge(QObject):
         self._pitch = 0.0
         self._yaw = 0.0
         self._depth = 0.0
+        self._temperature = 0.0
         self._joystick_connected = False
         self._rov_armed          = False
         self._rov_connected      = False
@@ -347,7 +352,9 @@ class ROSQmlBridge(QObject):
         self.sub_imu = self.node.create_subscription(
             Imu, 'imu_data', self.imu_callback, PoliciesUtils.sensor_qos)
         self.sub_barometer = self.node.create_subscription(
-            FluidPressure, 'barometer_pressure', self.barometer_callback, PoliciesUtils.sensor_qos)
+            Float32, 'barometer_depth_salt', self.barometer_callback, PoliciesUtils.sensor_qos)
+        self.sub_temperature = self.node.create_subscription(
+            Float32, 'barometer_temperature', self.temperature_callback, PoliciesUtils.sensor_qos)
         self.sub_joystick = self.node.create_subscription(
             Joy, 'joy', self.joystick_callback, PoliciesUtils.sensor_qos)
         self.node.create_subscription(
@@ -364,6 +371,9 @@ class ROSQmlBridge(QObject):
 
     @pyqtProperty(float, notify=depth_changed)
     def rovDepth(self): return self._depth
+
+    @pyqtProperty(float, notify=temperature_changed)
+    def rovTemperature(self): return self._temperature
 
     @pyqtProperty(bool, notify=joy_status_changed)
     def joystickConnected(self): return self._joystick_connected
@@ -391,9 +401,13 @@ class ROSQmlBridge(QObject):
         except Exception as e:
             self.node.get_logger().warn(f'IMU callback error: {e}')
 
-    def barometer_callback(self, msg: FluidPressure):
-        self._depth = (msg.fluid_pressure - 101325) / 9806.65
+    def barometer_callback(self, msg: Float32):
+        self._depth = msg.data
         self.depth_changed.emit(self._depth)
+
+    def temperature_callback(self, msg: Float32):
+        self._temperature = msg.data
+        self.temperature_changed.emit(self._temperature)
 
     def control_active_callback(self, msg: Bool):
         self._control_active = msg.data
@@ -443,9 +457,247 @@ class ROSQmlBridge(QObject):
         msg.data = arm_request
         self.arm_pub.publish(msg)
 
+    @pyqtSlot()
+    def resetDepthReference(self):
+        client = self.node.create_client(Trigger, 'barometer_reset_reference')
+        if client.wait_for_service(timeout_sec=1.0):
+            client.call_async(Trigger.Request())
+            self.node.get_logger().info('Depth reference reset requested')
+        else:
+            self.node.get_logger().warn('barometer_reset_reference service not available')
+
+    @pyqtSlot()
+    def resetAttitudeReference(self):
+        client = self.node.create_client(Trigger, 'imu_reset_reference')
+        if client.wait_for_service(timeout_sec=1.0):
+            client.call_async(Trigger.Request())
+            self.node.get_logger().info('Attitude reference reset requested')
+        else:
+            self.node.get_logger().warn('imu_reset_reference service not available')
+
     @pyqtSlot(bool)
     def _emit_rov_armed(self, armed: bool):
         self.rov_armed_changed.emit(armed)
+
+    @pyqtSlot(int, result='QVariant')
+    def getWebQrInfo(self, port: int):
+        """Compute the workstation's outbound IP and a QR code PNG for
+        http://<ip>:<port>. Called on Ctrl+Q from QML so the IP is fresh
+        even if the Wi-Fi was connected after launching the GUI."""
+        import socket, io, base64
+        ip = None
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # No packet sent; the kernel picks the iface for the default route
+            s.connect(('8.8.8.8', 80))
+            ip = s.getsockname()[0]
+        except OSError:
+            ip = None
+        finally:
+            s.close()
+
+        if not ip:
+            return {'ok': False, 'url': '', 'qrDataUrl': '',
+                    'error': 'Nessuna rete: connettiti al Wi-Fi e riprova.'}
+
+        url = f'http://{ip}:{port}'
+        try:
+            import qrcode
+            img = qrcode.make(url)
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            data = base64.b64encode(buf.getvalue()).decode('ascii')
+            qr_data_url = f'data:image/png;base64,{data}'
+        except ImportError:
+            return {'ok': False, 'url': url, 'qrDataUrl': '',
+                    'error': 'Pacchetto python3-qrcode mancante.'}
+
+        return {'ok': True, 'url': url, 'qrDataUrl': qr_data_url, 'error': ''}
+
+
+CONTROLLER_PARAM_NAMES = [
+    "control_mode",
+    "kp", "ki", "kd",
+    "manual_setpoint_depth", "manual_setpoint_roll",
+    "manual_setpoint_pitch", "manual_setpoint_yaw",
+    "setpoint_depth", "setpoint_roll", "setpoint_pitch", "setpoint_yaw",
+    "cs_kx0", "cs_kx1", "cs_kx2",
+    "cs_ki0", "cs_ki1", "cs_ki2",
+    "cs_heave_min", "cs_heave_max", "cs_angle_min", "cs_angle_max",
+]
+
+
+class ControllerBridge(QObject):
+    """
+    Exposes /nereo_controller_node parameters and telemetry to QML.
+    Uses rcl_interfaces services to GET/SET params; subscribes to
+    /controller/setpoints, /controller/errors, /controller/pid_terms
+    for live feedback.
+    """
+    connected_changed   = pyqtSignal(bool)
+    status_changed      = pyqtSignal(str, str)   # (message, severity: info|ok|warn|err)
+    params_loaded       = pyqtSignal('QVariant')  # dict name->value
+    setpoints_changed   = pyqtSignal('QVariantList')
+    errors_changed      = pyqtSignal('QVariantList')
+    pid_terms_changed   = pyqtSignal('QVariantList')
+
+    TARGET_NODE = '/nereo_controller_node'
+
+    def __init__(self, node: Node):
+        super().__init__()
+        self._node = node
+        self._connected = False
+        self._get_cli = node.create_client(
+            GetParameters, f'{self.TARGET_NODE}/get_parameters')
+        self._set_cli = node.create_client(
+            SetParameters, f'{self.TARGET_NODE}/set_parameters')
+
+        node.create_subscription(Float64MultiArray, '/controller/setpoints',
+                                 self._cb_setpoints, 10)
+        node.create_subscription(Float64MultiArray, '/controller/errors',
+                                 self._cb_errors, 10)
+        node.create_subscription(Float64MultiArray, '/controller/pid_terms',
+                                 self._cb_pid_terms, 10)
+
+        # poll connection
+        self._poll_timer = QTimer()
+        self._poll_timer.timeout.connect(self._check_connection)
+        self._poll_timer.start(1000)
+
+    @pyqtProperty(bool, notify=connected_changed)
+    def controllerConnected(self):
+        return self._connected
+
+    # ── connection ────────────────────────────────────────────────────────
+    def _check_connection(self):
+        ok = (self._get_cli.wait_for_service(timeout_sec=0.0) and
+              self._set_cli.wait_for_service(timeout_sec=0.0))
+        if ok != self._connected:
+            self._connected = ok
+            self.connected_changed.emit(ok)
+            if ok:
+                self.status_changed.emit(
+                    f'Connesso a {self.TARGET_NODE}', 'ok')
+                self.loadParameters()
+            else:
+                self.status_changed.emit(
+                    f'In attesa di {self.TARGET_NODE}…', 'warn')
+
+    # ── slots invoked from QML ────────────────────────────────────────────
+    @pyqtSlot()
+    def loadParameters(self):
+        if not self._connected:
+            self.status_changed.emit('Servizi parametri non disponibili', 'err')
+            return
+        req = GetParameters.Request()
+        req.names = CONTROLLER_PARAM_NAMES
+        future = self._get_cli.call_async(req)
+        future.add_done_callback(self._on_load_done)
+        self.status_changed.emit('Lettura parametri…', 'info')
+
+    def _on_load_done(self, future):
+        try:
+            result = future.result()
+        except Exception as exc:
+            self.status_changed.emit(f'Errore lettura: {exc}', 'err')
+            return
+        decoded = {}
+        for name, value in zip(CONTROLLER_PARAM_NAMES, result.values):
+            v = self._decode(value)
+            if v is not None:
+                decoded[name] = v
+        self.params_loaded.emit(decoded)
+        self.status_changed.emit('Parametri caricati', 'ok')
+
+    @pyqtSlot('QVariant')
+    def applyParameters(self, values):
+        if not self._connected:
+            self.status_changed.emit('Servizi parametri non disponibili', 'err')
+            return
+        # values is a QJSValue/dict from QML
+        try:
+            py = dict(values)
+        except Exception:
+            try:
+                py = values.toVariant()
+            except Exception:
+                self.status_changed.emit('Payload non valido', 'err')
+                return
+
+        params = []
+        try:
+            for name in CONTROLLER_PARAM_NAMES:
+                if name not in py:
+                    continue
+                params.append(self._encode(name, py[name]))
+        except (ValueError, TypeError) as exc:
+            self.status_changed.emit(f'Valore non valido: {exc}', 'err')
+            return
+
+        req = SetParameters.Request()
+        req.parameters = params
+        future = self._set_cli.call_async(req)
+        future.add_done_callback(self._on_apply_done)
+        self.status_changed.emit('Scrittura parametri…', 'info')
+
+    def _on_apply_done(self, future):
+        try:
+            response = future.result()
+        except Exception as exc:
+            self.status_changed.emit(f'Errore scrittura: {exc}', 'err')
+            return
+        failed = [r.reason for r in response.results if not r.successful]
+        if failed:
+            self.status_changed.emit(
+                f'Rifiutati: {"; ".join(failed)}', 'err')
+        else:
+            self.status_changed.emit('Applicati ✔', 'ok')
+
+    # ── encode / decode helpers ───────────────────────────────────────────
+    @staticmethod
+    def _decode(pv):
+        t = pv.type
+        if t == ParameterType.PARAMETER_BOOL:
+            return pv.bool_value
+        if t == ParameterType.PARAMETER_INTEGER:
+            return pv.integer_value
+        if t == ParameterType.PARAMETER_DOUBLE:
+            return pv.double_value
+        if t == ParameterType.PARAMETER_DOUBLE_ARRAY:
+            return list(pv.double_array_value)
+        if t == ParameterType.PARAMETER_INTEGER_ARRAY:
+            return list(pv.integer_array_value)
+        return None
+
+    @staticmethod
+    def _encode(name, value):
+        msg = ParameterMsg()
+        msg.name = name
+        pv = ParameterValue()
+        if name == 'control_mode':
+            pv.type = ParameterType.PARAMETER_INTEGER
+            pv.integer_value = int(value)
+        elif name.startswith('manual_setpoint_'):
+            pv.type = ParameterType.PARAMETER_BOOL
+            pv.bool_value = bool(value)
+        elif name in ('kp', 'ki', 'kd', 'cs_kx0', 'cs_kx1', 'cs_kx2'):
+            pv.type = ParameterType.PARAMETER_DOUBLE_ARRAY
+            pv.double_array_value = [float(x) for x in value]
+        else:
+            pv.type = ParameterType.PARAMETER_DOUBLE
+            pv.double_value = float(value)
+        msg.value = pv
+        return msg
+
+    # ── telemetry callbacks ───────────────────────────────────────────────
+    def _cb_setpoints(self, msg: Float64MultiArray):
+        self.setpoints_changed.emit(list(msg.data))
+
+    def _cb_errors(self, msg: Float64MultiArray):
+        self.errors_changed.emit(list(msg.data))
+
+    def _cb_pid_terms(self, msg: Float64MultiArray):
+        self.pid_terms_changed.emit(list(msg.data))
 
 
 def main():
@@ -464,11 +716,13 @@ def main():
     sonar_provider = SonarImageProvider(sonar_renderer)
     engine.addImageProvider("sonar", sonar_provider)
 
-    bridge       = ROSQmlBridge(node)
-    sonar_bridge = SonarBridge(node, sonar_renderer)
+    bridge            = ROSQmlBridge(node)
+    sonar_bridge      = SonarBridge(node, sonar_renderer)
+    controller_bridge = ControllerBridge(node)
 
-    engine.rootContext().setContextProperty("RosBridge",    bridge)
-    engine.rootContext().setContextProperty("SonarBridge",  sonar_bridge)
+    engine.rootContext().setContextProperty("RosBridge",        bridge)
+    engine.rootContext().setContextProperty("SonarBridge",      sonar_bridge)
+    engine.rootContext().setContextProperty("ControllerBridge", controller_bridge)
 
     package_share_dir = get_package_share_directory('gui_pkg')
     qml_file_path = os.path.join(package_share_dir, 'qml', 'main.qml')

@@ -12,6 +12,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
+#include "std_srvs/srv/trigger.hpp"
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include "nereo_sensors_pkg/qos_profiles.hpp"
@@ -43,6 +44,7 @@ class PublisherIMU: public rclcpp::Node
         rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_data_publisher_;
         rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr imu_diagnostic_publisher_;
         rclcpp::TimerBase::SharedPtr timer_;
+        rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_reference_srv_;
 
         bool imu_acc_error    = false;
         bool imu_angle_error  = false;
@@ -54,8 +56,16 @@ class PublisherIMU: public rclcpp::Node
 
         CovarianceMatrix matrix;
 
+        // Orientation offset applied so the operator can zero the IMU when the
+        // ROV is sitting level — the published orientation becomes
+        // reference_orientation_.inverse() * raw_orientation.
+        tf2::Quaternion reference_orientation_{0.0, 0.0, 0.0, 1.0};
+
         void timer_callback();
         void push_window(std::queue<Vec3> &window, Vec3 sample);
+        void reset_reference_callback(
+            const std_srvs::srv::Trigger::Request::SharedPtr,
+            std_srvs::srv::Trigger::Response::SharedPtr response);
 
     public:
         PublisherIMU();

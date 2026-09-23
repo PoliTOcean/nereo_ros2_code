@@ -85,7 +85,10 @@ uint8_t ms5837_interface_iic_deinit(void)
  */
 uint8_t ms5837_interface_iic_read(uint8_t addr, uint8_t reg, uint8_t *buf, uint16_t len)
 {
-    return iic_read(gs_fd, addr, reg, buf, len);
+    /* MS5837 ADC/PROM reads: send the command byte first, then read without repeated register byte */
+    if (iic_write_cmd(gs_fd, addr, &reg, 1) != 0)
+        return 1;
+    return iic_read_cmd(gs_fd, addr, buf, len);
 }
 
 /**
