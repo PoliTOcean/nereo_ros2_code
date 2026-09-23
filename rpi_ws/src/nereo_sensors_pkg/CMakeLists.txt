@@ -95,4 +95,21 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+if(BUILD_TESTING)
+  # QUIET: the offline Pi may lack ros-*-ament-cmake-gtest; skip rather
+  # than fail its build when the package is absent.
+  find_package(ament_cmake_gtest QUIET)
+  if(ament_cmake_gtest_FOUND)
+    ament_add_gtest(test_ms5837_driver
+      test/test_ms5837_driver.cpp
+      test/fake_ms5837_interface.c
+      src/barometer_sources/driver_ms5837.c
+      src/barometer_sources/driver_ms5837_basic.c
+    )
+  else()
+    message(STATUS
+      "ament_cmake_gtest not found: nereo_sensors_pkg unit tests skipped")
+  endif()
+endif()
+
 ament_package()
