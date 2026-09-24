@@ -17,11 +17,12 @@ USER="pi"
 PASS="rasp"
 SESSION="nereo_session"
 
-expect <<'EOF'
+# =============== OCCHIO: cambiato per l'altra rasp, deve essere 'set host "10.0.0.3"', 'set pass "raspberry"'
+expect <(cat <<'EOF'
 set timeout 30
-set host "10.0.0.3"
+set host "192.168.50.2"
 set user "pi"
-set pass "raspberry"
+set pass "rasp"
 set session "nereo_session"
 
 # ----- SSH -----
@@ -71,7 +72,7 @@ sleep 2
 expect -re "pi@.*:.*\\$ "
 
 # Split orizzontale nella stessa finestra - usa il nome della finestra
-send "tmux split-window -h -t $session:micro_ros bash -c 'cd ~/nereo_ros2_code && ./start_imu_bar.sh; exec bash'\r"
+send "tmux split-window -h -t $session:micro_ros bash -c 'source /opt/ros/jazzy/setup.bash && source ~/nereo_ros2_code/rpi_ws/install/setup.bash && cd ~/nereo_ros2_code && ./start_imu_bar.sh; exec bash'\r"
 sleep 2
 expect -re "pi@.*:.*\\$ "
 
@@ -94,3 +95,4 @@ send "tmux attach -t $session\r"
 # Passa IMMEDIATAMENTE il controllo all'utente senza aspettare nulla
 interact
 EOF
+)

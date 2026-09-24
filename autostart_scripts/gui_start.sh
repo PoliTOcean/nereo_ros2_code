@@ -1,39 +1,127 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WS_DIR="$SCRIPT_DIR/../gui_ws"
+VENV_DIR="$SCRIPT_DIR/venv"
 
-log() {
-    echo "[GUI_START] $1"
+echo
+
+
+check_command() {
+    command -v "$1" >/dev/null 2>&1
 }
 
-UBUNTU_VERSION=$(lsb_release -rs)
+ensure_python_tools() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        sudo apt update && sudo apt install -y python3
+    fi
+    if ! python3 -m venv --help >/dev/null 2>&1; then
+        sudo apt update && sudo apt install -y python3-venv
+    fi
+    if ! command -v pip3 >/dev/null 2>&1; then
+        sudo apt update && sudo apt install -y python3-pip
+    fi
+}
 
-if [ "$UBUNTU_VERSION" = "24.04" ]; then
-    ROS_DISTRO="jazzy"
-elif [ "$UBUNTU_VERSION" = "22.04" ]; then
-    ROS_DISTRO="humble"
-else
-    log "Unsupported Ubuntu version: $UBUNTU_VERSION"
-    exit 1
-fi
+main() {
+    if ! check_command ros2; then
+        echo "ROS2 not found."
+    fi
 
-ROS_SETUP="/opt/ros/$ROS_DISTRO/setup.bash"
-WORKSPACE_SETUP="$HOME/nereo_ros2_code/gui_ws/install/setup.bash"
+    # Source ROS2
+    set +u
+    source /opt/ros/jazzy/setup.bash
+    set -u
 
-if [ ! -f "$ROS_SETUP" ]; then
-    log "ERROR: ROS2 $ROS_DISTRO not installed."
-    exit 1
-fi
+    ensure_python_tools
 
-source "$ROS_SETUP"
+    # Clone Nereo_interfaces if not present
+    if [[ ! -d "$SCRIPT_DIR/nereo_interfaces" ]]; then
+        echo "Cloning nereo_interfaces..."
+        git clone https://github.com/PoliTOcean/nereo_interfaces.git "$SCRIPT_DIR/nereo_interfaces"
+    fi
 
-if [ ! -f "$WORKSPACE_SETUP" ]; then
-    log "Workspace not built. Building gui_ws..."
-
-    cd "$HOME/nereo_ros2_code/gui_ws"
+    # Build interfaces con Python di sistema (ha i pacchetti ROS2 corretti)
+    echo "Building nereo_interfaces with system Python..."
+    cd "$SCRIPT_DIR/nereo_interfaces"
     colcon build --symlink-install
-fi
 
-source "$WORKSPACE_SETUP"
+    # Build workspace con Python di sistema
+    echo "Building gui_ws with system Python..."
+    cd "$WS_DIR"
+    colcon build --symlink-install
 
-log "Launching GUI..."
-ros2 launch gui_pkg workstation.launch.py
+    # DOPO i build, crea il venv per runtime
+    if [[ ! -d "$VENV_DIR" ]]; then
+        echo "Creating virtual environment for runtime..."
+        python3 -m venv "$VENV_DIR" --system-site-packages
+        touch "$VENV_DIR/COLCON_IGNORE"
+    fi
+
+    # Attiva venv e installa solo PyQt6 (le altre dipendenze vengono da system-site-packages)
+    source "$VENV_DIR/bin/activate"
+    echo "Installing PyQt6 in venv..."
+    pip install --upgrade pip
+    pip install PyQt6
+    
+    echo "✓ Setup complete, starting tmux session..."
+
+    ### --------- TMUX PART --------- ###
+    # Check tmux
+    if ! command -v tmux >/dev/null 2>&1; then
+        echo "tmux not installed — installing..."
+        sudo apt update && sudo apt install -y tmux
+    fi
+
+    # Nome sessione
+    SESSION="rosgui"
+
+    # Se esiste, kill e ricrea (gestisci l'exit code senza far fallire lo script)
+    if tmux has-session -t $SESSION 2>/dev/null; then
+        echo "Killing existing tmux session '$SESSION'..."
+        tmux kill-session -t $SESSION
+    fi
+
+    echo "DEBUG: Creating tmux session '$SESSION'..."
+    echo "DEBUG: VENV_DIR=$VENV_DIR"
+    echo "DEBUG: WS_DIR=$WS_DIR"
+    echo "DEBUG: SCRIPT_DIR=$SCRIPT_DIR"
+    
+    # Disabilita set -e temporaneamente per i comandi tmux
+    set +e
+    
+    # Crea la sessione con il primo pannello (usa i valori espansi direttamente)
+    tmux -f /dev/null new-session -d -s $SESSION -n gui bash -c "
+        source '$VENV_DIR/bin/activate' && \
+        source /opt/ros/jazzy/setup.bash && \
+        source '$SCRIPT_DIR/nereo_interfaces/install/setup.bash' && \
+        source '$WS_DIR/install/setup.bash' && \
+        ros2 run gui_pkg gui_node; \
+        exec bash
+    "
+    
+    TMUX_EXIT_CODE=$?
+    if [ $TMUX_EXIT_CODE -ne 0 ]; then
+        echo "ERROR: Failed to create tmux session (exit code: $TMUX_EXIT_CODE)"
+        exit 1
+    fi
+
+    # Split verticale con il secondo nodo
+    tmux split-window -h -t $SESSION:0 bash -c "
+        source '$VENV_DIR/bin/activate' && \
+        source /opt/ros/jazzy/setup.bash && \
+        source '$SCRIPT_DIR/nereo_interfaces/install/setup.bash' && \
+        source '$WS_DIR/install/setup.bash' && \
+        ros2 run joystick_pkg joy_to_cmdvel; \
+        exec bash
+    "
+    
+    # Riabilita set -e
+    set -e
+
+    # Attacca la sessione
+    echo "Starting ROS2 GUI in tmux session '$SESSION'..."
+    tmux attach -t $SESSION
+}
+
+main "$@"
