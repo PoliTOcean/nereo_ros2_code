@@ -106,6 +106,9 @@ if(BUILD_TESTING)
       src/barometer_sources/driver_ms5837.c
       src/barometer_sources/driver_ms5837_basic.c
     )
+    ament_add_gtest(test_depth_conversion
+      test/test_depth_conversion.cpp
+    )
   else()
     message(STATUS
       "ament_cmake_gtest not found: nereo_sensors_pkg unit tests skipped")
