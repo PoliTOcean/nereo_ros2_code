@@ -30,21 +30,19 @@ Window {
     property bool manualPitch: false
     property bool manualYaw:   false
 
-    // Stored in display units: depth in metres, angles in degrees.
-    // Conversion to controller units (Pa, rad) happens in onParams_loaded / applyAll.
+    // Stored in display units: depth in metres, angles in degrees. The depth
+    // setpoint is metres end to end, positive down, in the tare-relative
+    // frame of /barometer_depth -- the GUI and the controller agree on the
+    // unit, so no conversion happens here. Only angles are converted
+    // (degrees here, radians in the controller) in onParams_loaded / applyAll.
     property real setpointDepth: 0.0
     property real setpointRoll:  0.0
     property real setpointPitch: 0.0
     property real setpointYaw:   0.0
 
-    // Unit conversion: GUI uses metres and degrees, controller uses Pa and radians.
-    // depthRho matches the density used by barometer_depth_salt topic in the GUI.
-    readonly property real depthRho: 1025.0
-    readonly property real gravity: 9.81
+    // Unit conversion: GUI uses degrees, controller uses radians.
     function rad2deg(r) { return r * 180.0 / Math.PI }
     function deg2rad(d) { return d * Math.PI / 180.0 }
-    function pa2m(pa)   { return pa / (root.depthRho * root.gravity) }
-    function m2pa(m)    { return m * root.depthRho * root.gravity }
 
     property var csKx0: [0.0, 0.0]
     property var csKx1: [0.0, 0.0]
@@ -77,7 +75,7 @@ Window {
             if (p.manual_setpoint_roll  !== undefined) root.manualRoll  = p.manual_setpoint_roll
             if (p.manual_setpoint_pitch !== undefined) root.manualPitch = p.manual_setpoint_pitch
             if (p.manual_setpoint_yaw   !== undefined) root.manualYaw   = p.manual_setpoint_yaw
-            if (p.setpoint_depth !== undefined) root.setpointDepth = root.pa2m(p.setpoint_depth)
+            if (p.setpoint_depth !== undefined) root.setpointDepth = p.setpoint_depth
             if (p.setpoint_roll  !== undefined) root.setpointRoll  = root.rad2deg(p.setpoint_roll)
             if (p.setpoint_pitch !== undefined) root.setpointPitch = root.rad2deg(p.setpoint_pitch)
             if (p.setpoint_yaw   !== undefined) root.setpointYaw   = root.rad2deg(p.setpoint_yaw)
@@ -114,7 +112,7 @@ Window {
             manual_setpoint_roll:  manualRoll,
             manual_setpoint_pitch: manualPitch,
             manual_setpoint_yaw:   manualYaw,
-            setpoint_depth: root.m2pa(parseFloat(setpointDepth)),
+            setpoint_depth: parseFloat(setpointDepth),
             setpoint_roll:  root.deg2rad(parseFloat(setpointRoll)),
             setpoint_pitch: root.deg2rad(parseFloat(setpointPitch)),
             setpoint_yaw:   root.deg2rad(parseFloat(setpointYaw)),
