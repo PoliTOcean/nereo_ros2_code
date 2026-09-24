@@ -6,13 +6,16 @@ from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     EmitEvent,
+    IncludeLaunchDescription,
     RegisterEventHandler,
     SetEnvironmentVariable,
 )
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
-from launch.substitutions import LaunchConfiguration
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 # Button presets (ros2 run joy joy_node, Linux hidraw driver)
 #   DS5:        btn_arm=10 (PS)    btn_mode=8 (Share)
@@ -112,14 +115,20 @@ def generate_launch_description():
         executable='safety_node',
         name='safety_node',
     )
-    nereo_controller_node = Node(
-        package='nereo_controller_node',
-        executable='nereo_controller_node',
-        name='nereo_controller_node',
-        parameters=[{
+    # Started via its own launch file (not a bare Node) so it loads its
+    # checked-in params YAML the same way the standalone controller launch
+    # does; the substitution resolves after _source_controller_overlay() has
+    # already extended AMENT_PREFIX_PATH.
+    nereo_controller_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('nereo_controller_node'),
+                'launch', 'nereo_controller.launch.py',
+            ])
+        ),
+        launch_arguments={
             'control_mode': LaunchConfiguration('control_mode'),
-        }],
-        output='screen',
+        }.items(),
     )
 
     return LaunchDescription([
@@ -150,7 +159,7 @@ def generate_launch_description():
         rosbridge_node,
         web_server_node,
         safety_node,
-        nereo_controller_node,
+        nereo_controller_launch,
 
         RegisterEventHandler(
             OnProcessExit(
