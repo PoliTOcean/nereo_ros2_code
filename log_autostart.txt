@@ -410,3 +410,103 @@ DEBUG: VENV_DIR=/home/dav_indo/nereo_ros2_code/venv
 DEBUG: WS_DIR=/home/dav_indo/nereo_ros2_code/gui_ws
 DEBUG: SCRIPT_DIR=/home/dav_indo/nereo_ros2_code
 Starting ROS2 GUI in tmux session 'rosgui'...
+
+
+[2026-05-21 13:10:20] New autostart attempt started.
+[2026-05-21 13:10:20] Starting autostart script.
+[2026-05-21 13:10:20] ERROR: another autostart.sh is already running. Exiting.
+[2026-05-21 13:10:20] Stopping previous autostart terminals/processes...
+[server exited unexpectedly]
+[2026-05-21 13:10:21] Lock still held. Killing processes using lock file...
+
+
+[2026-05-21 13:10:23] New autostart attempt started.
+[2026-05-21 13:10:23] Starting autostart script.
+[2026-05-21 13:10:23] Lock acquired.
+[2026-05-21 13:10:23] File 'gui_start.sh': found.
+[2026-05-21 13:10:23] File 'gui_start.sh': executable.
+[2026-05-21 13:10:23] File 'connect_and_run.sh': found.
+[2026-05-21 13:10:23] File 'connect_and_run.sh': executable.
+[2026-05-21 13:10:23] Opening GUI terminal.
+[2026-05-21 13:10:23] Opening terminal 'ros_gui'.
+[2026-05-21 13:10:23] Opening connect terminal.
+[2026-05-21 13:10:23] Opening terminal 'connect_and_run'.
+[2026-05-21 13:10:23] Done. Two terminals should be open: GUI and Connect.
+
+Building nereo_interfaces with system Python...
+[0.650s] WARNING:colcon.colcon_core.package_selection:Some selected packages are already built in one or more underlay workspaces:
+	'nereo_interfaces' is in: /home/dav_indo/nereo_ros2_code/nereo_interfaces/install/nereo_interfaces
+If a package in a merged underlay workspace is overridden and it installs headers, then all packages in the overlay must sort their include directories by workspace order. Failure to do so may result in build failures or undefined behavior at run time.
+If the overridden package is used by another package in any underlay, then the overriding package in the overlay must be API and ABI compatible or undefined behavior at run time may occur.
+
+If you understand the risks and want to override a package anyways, add the following to the command line:
+	--allow-overriding nereo_interfaces
+
+This may be promoted to an error in a future release of colcon-override-check.
+Starting >>> nereo_interfaces
+Finished <<< nereo_interfaces [0.86s]
+
+Summary: 1 package finished [1.11s]
+Building gui_ws with system Python...
+Starting >>> gui_pkg
+Starting >>> joystick_pkg
+Starting >>> web_pkg
+Finished <<< joystick_pkg [2.91s]
+Finished <<< gui_pkg [3.00s]
+Finished <<< web_pkg [3.02s]
+
+Summary: 3 packages finished [3.25s]
+Installing PyQt6 in venv...
+Requirement already satisfied: pip in /home/dav_indo/nereo_ros2_code/venv/lib/python3.12/site-packages (26.1.1)
+Requirement already satisfied: PyQt6 in /home/dav_indo/nereo_ros2_code/venv/lib/python3.12/site-packages (6.11.0)
+Requirement already satisfied: PyQt6-sip<14,>=13.8 in /home/dav_indo/nereo_ros2_code/venv/lib/python3.12/site-packages (from PyQt6) (13.11.1)
+Requirement already satisfied: PyQt6-Qt6<6.12.0,>=6.11.0 in /home/dav_indo/nereo_ros2_code/venv/lib/python3.12/site-packages (from PyQt6) (6.11.1)
+✓ Setup complete, starting tmux session...
+DEBUG: Creating tmux session 'rosgui'...
+DEBUG: VENV_DIR=/home/dav_indo/nereo_ros2_code/venv
+DEBUG: WS_DIR=/home/dav_indo/nereo_ros2_code/gui_ws
+DEBUG: SCRIPT_DIR=/home/dav_indo/nereo_ros2_code
+Starting ROS2 GUI in tmux session 'rosgui'...
+[lost tty]
+
+
+[2026-05-22 14:49:51] New autostart attempt started.
+[2026-05-22 14:49:51] Starting autostart script.
+[2026-05-22 14:49:51] Lock acquired.
+[2026-05-22 14:49:51] File 'gui_start.sh': found.
+[2026-05-22 14:49:51] File 'gui_start.sh': executable.
+[2026-05-22 14:49:51] File 'connect_and_run.sh': found.
+[2026-05-22 14:49:51] File 'connect_and_run.sh': executable.
+[2026-05-22 14:49:51] Opening GUI terminal.
+[2026-05-22 14:49:51] Opening terminal 'ros_gui'.
+[2026-05-22 14:49:51] Opening connect terminal.
+[2026-05-22 14:49:51] Opening terminal 'connect_and_run'.
+[2026-05-22 14:49:51] Done. Two terminals should be open: GUI and Connect.
+
+ROS2 not found.
+Building nereo_interfaces with system Python...
+Starting >>> nereo_interfaces
+Finished <<< nereo_interfaces [1.32s]
+
+Summary: 1 package finished [2.04s]
+Building gui_ws with system Python...
+Starting >>> gui_pkg
+Starting >>> joystick_pkg
+Starting >>> web_pkg
+Finished <<< joystick_pkg [4.30s]
+Finished <<< web_pkg [4.31s]
+Finished <<< gui_pkg [4.34s]
+
+Summary: 3 packages finished [4.55s]
+Installing PyQt6 in venv...
+Requirement already satisfied: pip in /home/dav_indo/nereo_ros2_code/venv/lib/python3.12/site-packages (26.1.1)
+Requirement already satisfied: PyQt6 in /home/dav_indo/nereo_ros2_code/venv/lib/python3.12/site-packages (6.11.0)
+Requirement already satisfied: PyQt6-sip<14,>=13.8 in /home/dav_indo/nereo_ros2_code/venv/lib/python3.12/site-packages (from PyQt6) (13.11.1)
+Requirement already satisfied: PyQt6-Qt6<6.12.0,>=6.11.0 in /home/dav_indo/nereo_ros2_code/venv/lib/python3.12/site-packages (from PyQt6) (6.11.1)
+✓ Setup complete, starting tmux session...
+DEBUG: Creating tmux session 'rosgui'...
+DEBUG: VENV_DIR=/home/dav_indo/nereo_ros2_code/venv
+DEBUG: WS_DIR=/home/dav_indo/nereo_ros2_code/gui_ws
+DEBUG: SCRIPT_DIR=/home/dav_indo/nereo_ros2_code
+Starting ROS2 GUI in tmux session 'rosgui'...
+[lost tty]

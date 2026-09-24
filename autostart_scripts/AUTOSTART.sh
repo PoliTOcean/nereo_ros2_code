@@ -7,57 +7,68 @@ LOG_FILE="$SCRIPT_DIR/log_autostart.txt"
 GUI_SCRIPT="$SCRIPT_DIR/gui_start.sh"
 CONNECT_SCRIPT="$SCRIPT_DIR/connect_and_run.sh"
 INSTALL_SCRIPT="$SCRIPT_DIR/install_ros.sh"
-TARGET_IP="10.0.0.3"
 
-# Appende sul file di log
-if [ ! -f "$LOG_FILE" ]; then
-    touch "$LOG_FILE"    
-else
-    printf "\n\n" >> "$LOG_FILE"  
-fi
+# =============== OCCHIO: cambiato per l'altra rasp, deve essere 10.0.0.3
+TARGET_IP="192.168.50.2"
+
+# Appende sul file di log e se non esiste lo crea
+printf "\n\n" >> "$LOG_FILE"  
 
 # ---------- Funzione per loggare sia su console sia su file ----------
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"           # scrive sia su console sia su file
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"           # scrive solo su file di log
 }
 
 log "New autostart attempt started."
 
-
-# ---------- FALLBACK DI EMERGENZA: se c'è un altro autostart in esecuzione, lo killa ----------
-# è un po' brutale, ma in caso di problemi con lock file o processi appesi, assicura che alla fine non ci siano più autostart attivi
+# ---------- PULIZIA PRIMA DI OGNI NUOVO AVVIO ----------
+# Chiude le sessioni tmux remote e i processi locali del ROV.
 stop_previous_autostart() {
-    log "Stopping previous autostart terminals/processes..."
+    log "Stopping previous ROV processes..."
+    echo "Chiusura delle sessioni sul Raspberry..."
+
+    # Richiede la password SSH se non hai configurato le chiavi.
+    # Chiude tutte le sessioni tmux dell'utente pi.
+    if ! ssh -o ConnectTimeout=10 "pi@$TARGET_IP" \
+        'if command -v tmux >/dev/null 2>&1; then
+             tmux kill-server 2>/dev/null || true
+         else
+             echo "ERROR: tmux non installato sul Raspberry." >&2
+             exit 1
+         fi'; then      # provo a connettermi per 10 secondi alla rasp e se non riesco stampo cose, se riesco killo il tmux   
+
+        log "ERROR: cannot complete Raspberry cleanup."
+        echo "Pulizia del Raspberry fallita. Autostart interrotto."
+        exit 1
+    fi
+
+    log "Raspberry tmux sessions stopped."
+    echo "Chiusura dei processi ROS sul PC..."
 
     pkill -f "gui_start.sh" || true
     pkill -f "connect_and_run.sh" || true
 
-    # Chiusura processi GUI/ROS rimasti attivi
     pkill -f "main.py" || true
     pkill -f "gui_ws" || true
     pkill -f "ros_gui" || true
     pkill -f "rqt" || true
 
-    # eventuali nodi ROS avviati
     pkill -f "ros2 launch" || true
     pkill -f "ros2 run" || true
 
-    # webserver e rosbridge
+    # Include processi che possono restare attivi senza il launcher.
     pkill -f "web_server_node" || true
     pkill -f "rosbridge_websocket" || true
+    pkill -f "nereo_controller_node" || true
+    pkill -f "joy_node" || true
 
+    pkill -f "gui_node" || true
+    pkill -f "joy_to_cmdvel" || true
+    pkill -f "safety_node" || true
+    
+    sleep 1
 
-    # breve pausa per assicurarsi che i processi siano terminati
-    sleep 1 
-
-    # breve pausa per assicurarsi che i processi siano terminati
-    if lsof "$LOCK_FILE" >/dev/null 2>&1; then
-        log "Lock still held. Killing processes using lock file..."
-        fuser -k "$LOCK_FILE" || true
-        sleep 1
-    fi
-
-    log "Previous autostart stopped."
+    log "Previous ROV processes stopped."
 }
 
 cat <<'USAGE'
@@ -71,21 +82,25 @@ USAGE
 
 log "Starting autostart script."
 
-# ---------- LOCK: evita avvi multipli contemporanei di autostart.sh ----------
-# il senso è che se devo runnare di nuovo autostart, prima chiudo quello vecchio (con stop_previous_autostart che è un po' brutale) e poi esco, così da lasciare la possibilità di runnare un nuovo autostart senza dover killare manualmente processi o terminali appesi
 
-LOCK_FILE="/tmp/nereo_autostart.lock"           # file usato come flag per capire se lo script è già in esecuzione
-exec 9>"$LOCK_FILE"         # apro il file di lock sul descrittore 9 e lo tengo aperto finché lo script gira
+# ---------- LOCK: una sola procedura di riavvio alla volta ----------
 
-# provo a prendere il lock: se ci riesco, lo script continua mentre se è già in uso, prima chiudo tutto e poi esco
-if ! flock -n 9; then
-    log "ERROR: another autostart.sh is already running. Exiting."
-    stop_previous_autostart
-    log "Old autostart has been stopped. Please run autostart.sh again."
+LOCK_FILE="/tmp/nereo_autostart_restart.lock"
+exec 9>"$LOCK_FILE"
+
+log "Waiting for restart lock..."
+
+if ! flock 9; then
+    log "ERROR: cannot acquire restart lock."
+    echo "Impossibile acquisire il lock. Autostart interrotto."
     exit 1
 fi
 
-log "Lock acquired."
+log "Restart lock acquired."
+
+# A ogni avvio ferma i processi precedenti, poi prosegue.
+stop_previous_autostart
+
 
 # ---------- CONTROLLO FILE LOCALE: esistenza e permessi di esecuzione ----------
 # se il file non esiste, esco con errore
@@ -104,9 +119,8 @@ check_file() {
 
     if [ ! -x "$f" ]; then
         log "WARNING: '$name' is not executable. Fixing permissions..."
-        chmod +x "$f"
 
-        if [ $? -ne 0 ]; then
+        if ! chmod +x "$f"; then
             log "ERROR: cannot make '$name' executable."
             exit 1
         fi
@@ -126,7 +140,7 @@ open_terminal() {
     log "Opening terminal '$title'."
 
     if command -v xterm >/dev/null 2>&1; then
-        xterm -T "$title" -hold -e "bash -lc '$cmd; exec bash'" &
+        xterm -T "$title" -hold -e bash -lc "$cmd; exec bash" &
         return 0
     fi
 
@@ -174,14 +188,14 @@ CONNECT_CMD="echo Waiting for $TARGET_IP; until ping -c1 -W1 $TARGET_IP >/dev/nu
 
 # ---------- Valutazione ROS installato o meno ----------
 log "Checking ROS installation..."
-./install_ros.sh
+"$INSTALL_SCRIPT"
 log "ROS installation check completed."
 
 # ---------- Avvio in terminali separati ----------
 log "Opening GUI terminal."
-open_terminal "ros_gui" "$GUI_CMD"
+open_terminal "ros_gui" "$GUI_CMD" 9>&-
 
 log "Opening connect terminal."
-open_terminal "connect_and_run" "$CONNECT_CMD"
+open_terminal "connect_and_run" "$CONNECT_CMD" 9>&-
 
 log "Done. Two terminals should be open: GUI and Connect."

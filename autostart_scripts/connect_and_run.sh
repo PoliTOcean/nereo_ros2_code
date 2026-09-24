@@ -7,9 +7,14 @@ if ! command -v expect >/dev/null 2>&1; then
     sudo apt update && sudo apt install -y expect
 fi
 
-HOST="10.0.0.3"
+# =============== OCCHIO: cambiato per l'altra rasp
+# HOST="10.0.0.3"
+# USER="pi"
+# PASS="raspberry"
+
+HOST="192.168.50.2"
 USER="pi"
-PASS="raspberry"
+PASS="rasp"
 SESSION="nereo_session"
 
 expect <<'EOF'
@@ -38,7 +43,7 @@ expect -re "pi@.*:.*\\$ "
 
 # ----- CONTROLLO FILE REMOTI -----
 # Entra nella repo e controlla che gli script esistano e siano eseguibili
-send "cd ~/nereo_ros2_code && for f in micro_ros_connect.sh start_imu_bar.sh start_cam.sh; do if [ ! -f \"\$f\" ]; then echo \"ERROR: file not found: \$f\"; exit 1; fi; if [ ! -x \"\$f\" ]; then echo \"WARNING: \$f is not executable. Fixing permissions...\"; chmod +x \"\$f\"; fi; done; echo \"Remote script check OK\"\r"
+send "cd ~/nereo_ros2_code && for f in micro_ros_connect.sh start_imu_bar.sh; do if \[ ! -f \"\$f\" \]; then echo \"ERROR: file not found: \$f\"; exit 1; fi; if \[ ! -x \"\$f\" \]; then echo \"WARNING: \$f is not executable. Fixing permissions...\"; chmod +x \"\$f\"; fi; done; echo \"Remote script check OK\"\r"
 expect -re "pi@.*:.*\\$ "
 
 # Breve pausa per assicurarsi che il sistema sia pronto
@@ -70,8 +75,8 @@ send "tmux split-window -h -t $session:micro_ros bash -c 'cd ~/nereo_ros2_code &
 sleep 2
 expect -re "pi@.*:.*\\$ "
 
-# Secondo split - camera
-send "tmux split-window -v -t $session:micro_ros bash -c 'cd ~/nereo_ros2_code && ./start_cam.sh; exec bash'\r"
+# Secondo split - sonar
+send "tmux split-window -v -t $session:micro_ros bash -c 'source /opt/ros/jazzy/setup.bash && source ~/nereo_ros2_code/rpi_ws/install/setup.bash && ros2 run sonar_pkg sonar_node; exec bash'\r"
 sleep 2
 expect -re "pi@.*:.*\\$ "
 
