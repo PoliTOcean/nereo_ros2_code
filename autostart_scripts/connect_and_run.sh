@@ -44,7 +44,7 @@ expect -re "pi@.*:.*\\$ "
 
 # ----- CONTROLLO FILE REMOTI -----
 # Entra nella repo e controlla che gli script esistano e siano eseguibili
-send "cd ~/nereo_ros2_code && for f in micro_ros_connect.sh start_imu_bar.sh; do if \[ ! -f \"\$f\" \]; then echo \"ERROR: file not found: \$f\"; exit 1; fi; if \[ ! -x \"\$f\" \]; then echo \"WARNING: \$f is not executable. Fixing permissions...\"; chmod +x \"\$f\"; fi; done; echo \"Remote script check OK\"\r"
+send "cd ~/nereo_ros2_code/autostart_scripts && for f in micro_ros_connect.sh start_imu_bar.sh; do if \[ ! -f \"\$f\" \]; then echo \"ERROR: file not found: \$f\"; exit 1; fi; if \[ ! -x \"\$f\" \]; then echo \"WARNING: \$f is not executable. Fixing permissions...\"; chmod +x \"\$f\"; fi; done; echo \"Remote script check OK\"\r"
 expect -re "pi@.*:.*\\$ "
 
 # Breve pausa per assicurarsi che il sistema sia pronto
@@ -62,7 +62,7 @@ sleep 0.3
 # Avvia lo script dentro tmux (senza piping della password), poi simula la
 # digitazione della password con `tmux send-keys` in modo che programmi che
 # leggono la password da /dev/tty (es. sudo, prompt interattivi) la ricevano.
-send "tmux -f /dev/null new-session -d -s $session -n micro_ros bash -c 'cd ~/nereo_ros2_code && ./micro_ros_connect.sh; exec bash'\r"
+send "tmux -f /dev/null new-session -d -s $session -n micro_ros bash -c 'cd ~/nereo_ros2_code/autostart_scripts && ./micro_ros_connect.sh; exec bash'\r"
 # lascia un breve intervallo perché tmux abbia avviato il processo e il prompt
 sleep 1
 # invia la password come tasti alla pane (simula l'input utente), seguito da Invio
@@ -72,7 +72,7 @@ sleep 2
 expect -re "pi@.*:.*\\$ "
 
 # Split orizzontale nella stessa finestra - usa il nome della finestra
-send "tmux split-window -h -t $session:micro_ros bash -c 'source /opt/ros/jazzy/setup.bash && source ~/nereo_ros2_code/rpi_ws/install/setup.bash && cd ~/nereo_ros2_code && ./start_imu_bar.sh; exec bash'\r"
+send "tmux split-window -h -t $session:micro_ros bash -c 'source /opt/ros/jazzy/setup.bash && source ~/nereo_ros2_code/rpi_ws/install/setup.bash && cd ~/nereo_ros2_code/autostart_scripts && ./start_imu_bar.sh; exec bash'\r"
 sleep 2
 expect -re "pi@.*:.*\\$ "
 

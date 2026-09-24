@@ -1,8 +1,126 @@
 
 
-[2026-09-24 19:33:00] New autostart attempt started.
-[2026-09-24 19:33:00] Starting autostart script.
-[2026-09-24 19:33:00] Waiting for restart lock...
-[2026-09-24 19:33:00] Restart lock acquired.
-[2026-09-24 19:33:00] Stopping previous ROV processes...
-[2026-09-24 19:33:10] ERROR: cannot complete Raspberry cleanup.
+[2026-09-24 22:20:52] New autostart attempt started.
+[2026-09-24 22:20:52] Starting autostart script.
+[2026-09-24 22:20:52] Waiting for restart lock...
+[2026-09-24 22:20:52] Restart lock acquired.
+[2026-09-24 22:20:52] Stopping previous ROV processes...
+[2026-09-24 22:20:56] Raspberry tmux sessions stopped.
+[2026-09-24 22:20:57] Previous ROV processes stopped.
+[2026-09-24 22:20:57] File 'gui_start.sh': found.
+[2026-09-24 22:20:57] File 'gui_start.sh': executable.
+[2026-09-24 22:20:57] File 'connect_and_run.sh': found.
+[2026-09-24 22:20:57] File 'connect_and_run.sh': executable.
+[2026-09-24 22:20:57] File 'install_ros.sh': found.
+[2026-09-24 22:20:57] File 'install_ros.sh': executable.
+[2026-09-24 22:20:57] Checking ROS installation...
+[2026-09-24 22:21:01] ROS installation check completed.
+[2026-09-24 22:21:01] Opening GUI terminal.
+[2026-09-24 22:21:01] Opening terminal 'ros_gui'.
+[2026-09-24 22:21:01] Opening connect terminal.
+[2026-09-24 22:21:01] Opening terminal 'connect_and_run'.
+[2026-09-24 22:21:01] Done. Two terminals should be open: GUI and Connect.
+
+Building nereo_interfaces with system Python...
+Starting >>> nereo_interfaces
+Finished <<< nereo_interfaces [1.04s]
+
+Summary: 1 package finished [1.34s]
+Building gui_ws with system Python...
+/home/dav_indo/nereo_ros2_code/autostart_scripts/gui_start.sh: line 51: cd: /home/dav_indo/nereo_ros2_code/autostart_scripts/gui_ws: No such file or directory
+
+
+[2026-09-24 22:28:56] New autostart attempt started.
+[2026-09-24 22:28:56] Starting autostart script.
+[2026-09-24 22:28:56] Waiting for restart lock...
+[2026-09-24 22:28:56] Restart lock acquired.
+[2026-09-24 22:28:56] Stopping previous ROV processes...
+[2026-09-24 22:29:01] Raspberry tmux sessions stopped.
+[2026-09-24 22:29:03] Previous ROV processes stopped.
+[2026-09-24 22:29:03] File 'gui_start.sh': found.
+[2026-09-24 22:29:03] File 'gui_start.sh': executable.
+[2026-09-24 22:29:03] File 'connect_and_run.sh': found.
+[2026-09-24 22:29:03] File 'connect_and_run.sh': executable.
+[2026-09-24 22:29:03] File 'install_ros.sh': found.
+[2026-09-24 22:29:03] File 'install_ros.sh': executable.
+[2026-09-24 22:29:03] Checking ROS installation...
+[2026-09-24 22:29:13] ROS installation check completed.
+[2026-09-24 22:29:13] Opening GUI terminal.
+[2026-09-24 22:29:13] Opening terminal 'ros_gui'.
+[2026-09-24 22:29:13] Opening connect terminal.
+[2026-09-24 22:29:13] Opening terminal 'connect_and_run'.
+[2026-09-24 22:29:13] Done. Two terminals should be open: GUI and Connect.
+
+Building nereo_interfaces with system Python...
+Starting >>> nereo_interfaces
+Finished <<< nereo_interfaces [0.89s]
+
+Summary: 1 package finished [1.14s]
+Building gui_ws with system Python...
+Starting >>> gui_pkg
+Starting >>> joystick_pkg
+Starting >>> web_pkg
+Finished <<< gui_pkg [4.27s]
+Finished <<< web_pkg [4.32s]
+Finished <<< joystick_pkg [4.39s]
+
+Summary: 3 packages finished [4.63s]
+Installing PyQt6 in venv...
+Requirement already satisfied: pip in /home/dav_indo/nereo_ros2_code/autostart_scripts/venv/lib/python3.12/site-packages (26.2.1)
+Requirement already satisfied: PyQt6 in /usr/lib/python3/dist-packages (6.6.1)
+Requirement already satisfied: PyQt6-sip<14,>=13.6 in /usr/lib/python3/dist-packages (from PyQt6) (13.6.0)
+✓ Setup complete, starting tmux session...
+DEBUG: Creating tmux session 'rosgui'...
+DEBUG: VENV_DIR=/home/dav_indo/nereo_ros2_code/autostart_scripts/venv
+DEBUG: WS_DIR=/home/dav_indo/nereo_ros2_code/autostart_scripts/../gui_ws
+DEBUG: SCRIPT_DIR=/home/dav_indo/nereo_ros2_code/autostart_scripts
+Starting ROS2 GUI in tmux session 'rosgui'...
+[lost tty]
+
+
+[2026-09-24 22:44:12] New autostart attempt started.
+[2026-09-24 22:44:12] Starting autostart script.
+[2026-09-24 22:44:12] Waiting for restart lock...
+[2026-09-24 22:44:12] Restart lock acquired.
+[2026-09-24 22:44:12] Stopping previous ROV processes...
+[2026-09-24 22:44:16] Raspberry tmux sessions stopped.
+[2026-09-24 22:44:17] Previous ROV processes stopped.
+[2026-09-24 22:44:17] File 'gui_start.sh': found.
+[2026-09-24 22:44:17] File 'gui_start.sh': executable.
+[2026-09-24 22:44:17] File 'connect_and_run.sh': found.
+[2026-09-24 22:44:17] File 'connect_and_run.sh': executable.
+[2026-09-24 22:44:17] File 'install_ros.sh': found.
+[2026-09-24 22:44:17] File 'install_ros.sh': executable.
+[2026-09-24 22:44:17] Checking ROS installation...
+[2026-09-24 22:44:29] ROS installation check completed.
+[2026-09-24 22:44:29] Opening GUI terminal.
+[2026-09-24 22:44:29] Opening terminal 'ros_gui'.
+[2026-09-24 22:44:29] Opening connect terminal.
+[2026-09-24 22:44:29] Opening terminal 'connect_and_run'.
+[2026-09-24 22:44:29] Done. Two terminals should be open: GUI and Connect.
+
+Building nereo_interfaces with system Python...
+Starting >>> nereo_interfaces
+Finished <<< nereo_interfaces [1.00s]
+
+Summary: 1 package finished [1.26s]
+Building gui_ws with system Python...
+Starting >>> gui_pkg
+Starting >>> joystick_pkg
+Starting >>> web_pkg
+Finished <<< gui_pkg [4.35s]
+Finished <<< joystick_pkg [4.40s]
+Finished <<< web_pkg [4.42s]
+
+Summary: 3 packages finished [4.66s]
+Installing PyQt6 in venv...
+Requirement already satisfied: pip in /home/dav_indo/nereo_ros2_code/autostart_scripts/venv/lib/python3.12/site-packages (26.2.1)
+Requirement already satisfied: PyQt6 in /usr/lib/python3/dist-packages (6.6.1)
+Requirement already satisfied: PyQt6-sip<14,>=13.6 in /usr/lib/python3/dist-packages (from PyQt6) (13.6.0)
+✓ Setup complete, starting tmux session...
+DEBUG: Creating tmux session 'rosgui'...
+DEBUG: VENV_DIR=/home/dav_indo/nereo_ros2_code/autostart_scripts/venv
+DEBUG: WS_DIR=/home/dav_indo/nereo_ros2_code/autostart_scripts/../gui_ws
+DEBUG: SCRIPT_DIR=/home/dav_indo/nereo_ros2_code/autostart_scripts
+Starting ROS2 GUI in tmux session 'rosgui'...
+[lost tty]
