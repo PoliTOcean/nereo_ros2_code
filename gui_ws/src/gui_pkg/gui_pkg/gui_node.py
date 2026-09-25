@@ -26,11 +26,12 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from tf_transformations import euler_from_quaternion
-from sensor_msgs.msg import Imu, Joy
+from sensor_msgs.msg import Imu, Joy, FluidPressure
 from std_msgs.msg import Float32, Int32, Float32MultiArray, Bool, Float64MultiArray
 from std_srvs.srv import Trigger
 from rcl_interfaces.msg import ParameterType, ParameterValue, Parameter as ParameterMsg
 from rcl_interfaces.srv import GetParameters, SetParameters
+from nereo_interfaces.msg import ThrusterStatuses
 from . import PoliciesUtils
 from . import freshness
 
@@ -329,6 +330,7 @@ class ROSQmlBridge(QObject):
     rov_armed_changed      = pyqtSignal(bool)
     rov_connected_changed  = pyqtSignal(bool)
     control_active_changed = pyqtSignal(bool)
+    rov_armed_received     = pyqtSignal(bool)
 
     def __init__(self, node: Node):
         super().__init__()
@@ -440,6 +442,7 @@ class ROSQmlBridge(QObject):
                 self.rov_connected_changed.emit(False)
 
     def rov_armed_callback(self, msg: Bool):
+        self.rov_armed_received.emit(msg.data)
         self.last_rov_armed_time = self.node.get_clock().now()
         if not self._rov_connected:
             self._rov_connected = True
@@ -714,13 +717,35 @@ class StatusBridge(QObject):
     """
     status_changed = pyqtSignal()
 
-    def __init__(self, node: Node, ros_bridge: ROSQmlBridge):
+    def __init__(self, node: Node, ros_bridge: ROSQmlBridge,
+                 sonar_bridge: SonarBridge):
         super().__init__()
         self._node = node
         self._raw = {}
 
         ros_bridge.depth_changed.connect(
             lambda v: self.record('depth', v))
+        ros_bridge.rov_armed_received.connect(
+            lambda v: self.record('armed', v))
+        ros_bridge.roll_changed.connect(
+            lambda v: self.record('roll', v))
+        ros_bridge.pitch_changed.connect(
+            lambda v: self.record('pitch', v))
+        ros_bridge.yaw_changed.connect(
+            lambda v: self.record('yaw', v))
+        ros_bridge.temperature_changed.connect(
+            lambda v: self.record('water_temp', v))
+        sonar_bridge.distance_changed.connect(
+            lambda v: self.record('sonar_range', v))
+        sonar_bridge.confidence_changed.connect(
+            lambda v: self.record('sonar_confidence', v))
+
+        self._node.create_subscription(
+            ThrusterStatuses, '/thruster_status',
+            self._cb_thruster_status, PoliciesUtils.sensor_qos)
+        self._node.create_subscription(
+            FluidPressure, 'barometer_pressure',
+            self._cb_pressure, PoliciesUtils.sensor_qos)
 
         self._status = freshness.build_status(self._raw, time.monotonic())
 
@@ -735,11 +760,19 @@ class StatusBridge(QObject):
     def record(self, key, value):
         self._raw[key] = (value, time.monotonic())
 
+    def _cb_thruster_status(self, msg: ThrusterStatuses):
+        self.record('thrusters', list(msg.thruster_pwms))
+
+    def _cb_pressure(self, msg: FluidPressure):
+        self.record('pressure', msg.fluid_pressure)
+
     def refresh(self, now=None):
         if now is None:
             now = time.monotonic()
         model = freshness.build_status(self._raw, now)
         if model != self._status:
+            for line in freshness.badge_transitions(self._status, model):
+                self._node.get_logger().info(line)
             self._status = model
             self.status_changed.emit()
 
@@ -763,7 +796,7 @@ def main():
     bridge            = ROSQmlBridge(node)
     sonar_bridge      = SonarBridge(node, sonar_renderer)
     controller_bridge = ControllerBridge(node)
-    status_bridge     = StatusBridge(node, bridge)
+    status_bridge     = StatusBridge(node, bridge, sonar_bridge)
 
     engine.rootContext().setContextProperty("RosBridge",        bridge)
     engine.rootContext().setContextProperty("SonarBridge",      sonar_bridge)

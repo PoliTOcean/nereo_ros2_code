@@ -6,7 +6,11 @@ import QtQuick.Window 2.15
 Window {
     id: root
     property bool rovArmed: false
-    property var vehicleStatus: ({"groups": []})
+    property var vehicleStatus: ({
+        "armed": {"label": "ROV", "text": "—", "unit": "",
+                   "badge": "NO DATA", "age": "—", "alert": false},
+        "groups": []
+    })
     signal armRequested(bool armed)
 
     width: 600
@@ -84,7 +88,7 @@ Window {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 36
+                Layout.preferredHeight: 44
                 color: "#262b31"
                 border.color: "#2f363d"
                 border.width: 1
@@ -93,7 +97,43 @@ Window {
                     anchors.fill: parent
                     anchors.margins: 8
                     Text { text: "CONTROL PANEL"; color: "#d8e2ea"; font.pixelSize: 12; font.bold: true; Layout.fillWidth: true }
-                    Text { text: root.rovArmed ? "ARMED" : "DISARMED"; color: root.rovArmed ? "#ffcc00" : "#9fb3c3"; font.pixelSize: 12; font.bold: true }
+                    // Armed state: the largest text in the window, above
+                    // every status group (PANEL-01). Pre-computed by
+                    // gui_node -- this branches only on the badge/text
+                    // strings it is handed, never on a clock (PANEL-13).
+                    Text {
+                        text: root.vehicleStatus.armed.text
+                        color: root.vehicleStatus.armed.text === "ARMED"
+                               ? "#ffcc00" : "#9fb3c3"
+                        font.pixelSize: 20
+                        font.bold: true
+                    }
+                    Rectangle {
+                        width: 74
+                        height: 18
+                        radius: 9
+                        color: root.vehicleStatus.armed.badge === "OK"
+                               ? "#1b4d6b"
+                               : root.vehicleStatus.armed.badge === "STALE"
+                                 ? "#7a6a1b" : "#7a2b2b"
+                        border.color: root.vehicleStatus.armed.badge === "OK"
+                               ? "#4cc6ff"
+                               : root.vehicleStatus.armed.badge === "STALE"
+                                 ? "#e0c050" : "#e06666"
+                        border.width: 1
+                        Text {
+                            anchors.centerIn: parent
+                            text: root.vehicleStatus.armed.badge
+                            color: "#e6edf3"
+                            font.pixelSize: 10
+                            font.bold: true
+                        }
+                    }
+                    Text {
+                        text: root.vehicleStatus.armed.age
+                        color: "#8aa1b3"
+                        font.pixelSize: 11
+                    }
                 }
             }
 

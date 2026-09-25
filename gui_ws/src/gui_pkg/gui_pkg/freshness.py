@@ -14,7 +14,35 @@ Author: Davide Colabella
 # periods.
 THRESHOLDS_S = {
     'depth': (0.9, 3.0),
+    # ponytail: firmware publishes /rov_armed and /thruster_status every
+    # 25 ms control cycle, so 0.5/1.0 s sits well above gui_node's
+    # worst-case ~0.2 s callback service cycle. If healthy ages read
+    # above 0.3 s on the bench, drain the executor per tick; do not
+    # raise this threshold to compensate.
+    'armed': (0.5, 1.0),
+    'thrusters': (0.5, 1.0),
+    'roll': (0.6, 2.0),
+    'pitch': (0.6, 2.0),
+    'yaw': (0.6, 2.0),
+    'pressure': (0.9, 3.0),
+    'water_temp': (0.9, 3.0),
+    'sonar_range': (1.0, 3.0),
+    'sonar_confidence': (1.0, 3.0),
 }
+
+# (raw key, label, unit, format function) for each PI SENSORS row, in the
+# fixed display order (PANEL-11 ordering) -- independent of whatever
+# order the raw dict happens to be filled in.
+_PI_SENSORS_FIELDS = (
+    ('roll', 'Roll', '°', lambda v: f'{v:.1f}'),
+    ('pitch', 'Pitch', '°', lambda v: f'{v:.1f}'),
+    ('yaw', 'Yaw', '°', lambda v: f'{v:.1f}'),
+    ('depth', 'Depth', 'm', lambda v: f'{v:.2f}'),
+    ('pressure', 'Pressure', 'hPa', lambda v: f'{v / 100:.1f}'),
+    ('water_temp', 'Water temperature', '°C', lambda v: f'{v:.1f}'),
+    ('sonar_range', 'Sonar range', 'm', lambda v: f'{v:.2f}'),
+    ('sonar_confidence', 'Sonar confidence', '%', lambda v: f'{int(v)}'),
+)
 
 # Push cadence for the model reaching QML, in milliseconds (PANEL-14).
 STATUS_PUSH_MS = 250
@@ -114,6 +142,63 @@ def is_pinned(pwm_us):
     return pwm_us <= PWM_MIN_US or pwm_us >= PWM_MAX_US
 
 
+def _classify_field(raw, now, key):
+    """Classify one raw field's freshness, badge and display age.
+
+    Args:
+        raw: the build_status raw dict.
+        now: current monotonic time.
+        key: the field's key in raw and in THRESHOLDS_S.
+
+    Returns:
+        A (value, badge, age_text) tuple. value is None when the field
+        was never received.
+    """
+    value, t_received = raw.get(key, (None, None))
+    stale_s, nodata_s = THRESHOLDS_S[key]
+    badge = classify_freshness(t_received, now, stale_s, nodata_s)
+    age = format_age(t_received, now)
+    return value, badge, age
+
+
+def _pi_sensors_rows(raw, now):
+    """Build the PI SENSORS group's rows, in fixed display order."""
+    rows = []
+    for key, label, unit, fmt in _PI_SENSORS_FIELDS:
+        value, badge, age = _classify_field(raw, now, key)
+        text = NO_VALUE if value is None else fmt(value)
+        rows.append(make_row(label, text, unit, badge, age))
+    return rows
+
+
+def _armed_row_and_link_down(raw, now):
+    """Build the armed ('ROV') row and whether the firmware link is down.
+
+    Link down (PANEL-08, D-10) means /rov_armed has never arrived or has
+    been silent past its NO DATA threshold.
+    """
+    value, badge, age = _classify_field(raw, now, 'armed')
+    link_down = badge == BADGE_NO_DATA
+    if link_down:
+        return make_row('ROV', NO_VALUE, '', BADGE_LINK_DOWN, age), True
+    text = 'ARMED' if value else 'DISARMED'
+    return make_row('ROV', text, '', badge, age), False
+
+
+def _thruster_rows(raw, now):
+    """Build the eight Thruster N rows, sharing /thruster_status's age."""
+    value, badge, age = _classify_field(raw, now, 'thrusters')
+    pwms = value if value is not None else [None] * 8
+    rows = []
+    for i, pwm in enumerate(pwms):
+        text = NO_VALUE if pwm is None else str(pwm)
+        alert = pwm is not None and is_pinned(pwm)
+        rows.append(
+            make_row(f'Thruster {i + 1}', text, 'µs', badge, age,
+                      alert=alert))
+    return rows
+
+
 def build_status(raw, now):
     """Build the full status model from raw field readings.
 
@@ -124,25 +209,36 @@ def build_status(raw, now):
             computation in the returned model.
 
     Returns:
-        A dict with one key, 'groups', a list of group dicts (a list, not
-        a dict, so QML's QVariantMap key-sorting cannot reorder groups).
-        Each group is {'name', 'badge', 'note', 'rows'}.
+        A dict with 'armed' (the ROV row) and 'groups', a list of group
+        dicts (a list, not a dict, so QML's QVariantMap key-sorting
+        cannot reorder groups). Each group is
+        {'name', 'badge', 'note', 'rows'}.
     """
-    value, t_received = raw.get('depth', (None, None))
-    stale_s, nodata_s = THRESHOLDS_S['depth']
-    badge = classify_freshness(t_received, now, stale_s, nodata_s)
-    age = format_age(t_received, now)
-    text = NO_VALUE if value is None else f'{value:.2f}'
-    depth_row = make_row('Depth', text, 'm', badge, age)
+    armed_row, link_down = _armed_row_and_link_down(raw, now)
+
+    if link_down:
+        firmware_group = {
+            'name': 'FIRMWARE',
+            'badge': BADGE_LINK_DOWN,
+            'note': '',
+            'rows': [],
+        }
+    else:
+        firmware_group = {
+            'name': 'FIRMWARE',
+            'badge': '',
+            'note': '',
+            'rows': _thruster_rows(raw, now),
+        }
 
     pi_sensors_group = {
         'name': 'PI SENSORS',
         'badge': '',
         'note': '',
-        'rows': [depth_row],
+        'rows': _pi_sensors_rows(raw, now),
     }
 
-    return {'groups': [pi_sensors_group]}
+    return {'armed': armed_row, 'groups': [firmware_group, pi_sensors_group]}
 
 
 def badge_transitions(old, new):

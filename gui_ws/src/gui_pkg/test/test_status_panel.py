@@ -24,11 +24,19 @@ from PyQt6.QtQml import QQmlComponent, QQmlEngine
 
 from gui_pkg import freshness
 from gui_pkg import PoliciesUtils
-from gui_pkg.gui_node import ROSQmlBridge, StatusBridge
+from gui_pkg.gui_node import (
+    ROSQmlBridge, SonarBridge, SonarRenderer, StatusBridge)
 
 # One QGuiApplication for the whole module -- QML/Quick objects require
 # one to exist, and PyQt6 refuses to construct a second.
 _app = QGuiApplication.instance() or QGuiApplication([])
+
+
+def _group(model, name):
+    for group in model['groups']:
+        if group['name'] == name:
+            return group
+    raise AssertionError(f'no group named {name!r} in {model!r}')
 
 
 @pytest.fixture
@@ -42,7 +50,8 @@ def test_depth_roundtrip(rclpy_context):
     status_node = Node('status_test_gui')
     pub_node = Node('status_test_publisher')
     bridge = ROSQmlBridge(status_node)
-    status_bridge = StatusBridge(status_node, bridge)
+    sonar_bridge = SonarBridge(status_node, SonarRenderer())
+    status_bridge = StatusBridge(status_node, bridge, sonar_bridge)
 
     depth_pub = pub_node.create_publisher(
         Float32, 'barometer_depth', PoliciesUtils.sensor_qos)
@@ -60,7 +69,9 @@ def test_depth_roundtrip(rclpy_context):
             status_bridge.refresh()
 
             model = status_bridge.vehicleStatus
-            depth_row = model['groups'][0]['rows'][0]
+            pi_sensors = _group(model, 'PI SENSORS')
+            depth_row = next(
+                r for r in pi_sensors['rows'] if r['label'] == 'Depth')
             if (depth_row['badge'] == freshness.BADGE_OK
                     and depth_row['text'] == '1.23'):
                 break
@@ -79,7 +90,8 @@ def test_depth_roundtrip(rclpy_context):
 def test_refresh_emits_once(rclpy_context):
     node = Node('status_test_refresh_once')
     bridge = ROSQmlBridge(node)
-    status_bridge = StatusBridge(node, bridge)
+    sonar_bridge = SonarBridge(node, SonarRenderer())
+    status_bridge = StatusBridge(node, bridge, sonar_bridge)
 
     status_bridge.record('depth', 1.0)
 
@@ -99,7 +111,8 @@ def test_refresh_emits_once(rclpy_context):
 def test_record_coalesces(rclpy_context):
     node = Node('status_test_coalesce')
     bridge = ROSQmlBridge(node)
-    status_bridge = StatusBridge(node, bridge)
+    sonar_bridge = SonarBridge(node, SonarRenderer())
+    status_bridge = StatusBridge(node, bridge, sonar_bridge)
 
     now = time.monotonic()
     status_bridge.record('depth', 1.0)
@@ -107,7 +120,9 @@ def test_record_coalesces(rclpy_context):
     status_bridge.refresh(now)
 
     try:
-        depth_row = status_bridge.vehicleStatus['groups'][0]['rows'][0]
+        pi_sensors = _group(status_bridge.vehicleStatus, 'PI SENSORS')
+        depth_row = next(
+            r for r in pi_sensors['rows'] if r['label'] == 'Depth')
         assert depth_row['text'] == '2.00'
     finally:
         node.destroy_node()
