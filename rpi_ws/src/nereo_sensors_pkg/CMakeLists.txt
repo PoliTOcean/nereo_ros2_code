@@ -115,6 +115,9 @@ if(BUILD_TESTING)
     ament_add_gtest(test_depth_conversion
       test/test_depth_conversion.cpp
     )
+    ament_add_gtest(test_pi_health_parsers
+      test/test_pi_health_parsers.cpp
+    )
   else()
     message(STATUS
       "ament_cmake_gtest not found: nereo_sensors_pkg unit tests skipped")

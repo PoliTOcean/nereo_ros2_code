@@ -12,14 +12,16 @@
  *
  * Key contract (KeyValue keys on `pi_health`):
  *   cpu_load_percent   -- CPU load, %, filled here
- *   soc_temp_c         -- SoC temperature, degrees C (06-03 Task 2)
- *   disk_used_percent  -- root filesystem use, % (06-03 Task 2)
+ *   soc_temp_c         -- SoC temperature, degrees C, filled here
+ *   disk_used_percent  -- root filesystem use, %, filled here
  *   under_voltage_now, freq_capped_now, throttled_now,
  *   soft_temp_limit_now, under_voltage_since_boot,
  *   freq_capped_since_boot, throttled_since_boot,
  *   soft_temp_limit_since_boot, throttled_raw, agent_running
  *                      -- filled in 06-04
  */
+
+#include <sys/statvfs.h>
 
 #include <cstdio>
 #include <fstream>
@@ -64,6 +66,8 @@ private:
         array.header.frame_id = "pi";
 
         array.status.push_back(build_cpu_status());
+        array.status.push_back(build_temp_status());
+        array.status.push_back(build_disk_status());
 
         health_publisher_->publish(array);
     }
@@ -104,6 +108,71 @@ private:
         if (parsed) {
             prev_cpu_ = cur;
             has_prev_cpu_ = true;
+        }
+
+        status.values.push_back(kv);
+        return status;
+    }
+
+    diagnostic_msgs::msg::DiagnosticStatus build_temp_status()
+    {
+        auto status = diagnostic_msgs::msg::DiagnosticStatus();
+        status.name = "Pi temperature";
+        diagnostic_msgs::msg::KeyValue kv;
+        kv.key = "soc_temp_c";
+
+        std::ifstream temp_file(
+            "/sys/class/thermal/thermal_zone0/temp");
+        std::string text;
+        double celsius = 0.0;
+        bool ok = temp_file.is_open() &&
+                  std::getline(temp_file, text) &&
+                  parse_millidegrees(text, &celsius);
+
+        if (ok) {
+            char buf[16];
+            std::snprintf(buf, sizeof(buf), "%.1f", celsius);
+            kv.value = buf;
+            status.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
+            status.message = "Pi SoC temperature read correctly";
+        } else {
+            kv.value = PI_HEALTH_UNAVAILABLE;
+            status.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+            status.message =
+                "Failed to read /sys/class/thermal/thermal_zone0/temp";
+            RCLCPP_WARN(this->get_logger(),
+                        "Failed to read SoC temperature");
+        }
+
+        status.values.push_back(kv);
+        return status;
+    }
+
+    diagnostic_msgs::msg::DiagnosticStatus build_disk_status()
+    {
+        auto status = diagnostic_msgs::msg::DiagnosticStatus();
+        status.name = "Pi disk";
+        diagnostic_msgs::msg::KeyValue kv;
+        kv.key = "disk_used_percent";
+
+        struct statvfs vfs {};
+        double percent = 0.0;
+        bool ok = statvfs("/", &vfs) == 0 &&
+                  disk_used_percent(vfs.f_blocks, vfs.f_bfree,
+                                     vfs.f_bavail, &percent);
+
+        if (ok) {
+            char buf[16];
+            std::snprintf(buf, sizeof(buf), "%.1f", percent);
+            kv.value = buf;
+            status.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
+            status.message = "Pi disk use read correctly";
+        } else {
+            kv.value = PI_HEALTH_UNAVAILABLE;
+            status.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+            status.message = "Failed to statvfs(\"/\")";
+            RCLCPP_WARN(this->get_logger(),
+                        "Failed to read root filesystem use");
         }
 
         status.values.push_back(kv);

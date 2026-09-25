@@ -12,6 +12,7 @@
 #ifndef PI_HEALTH_HPP
 #define PI_HEALTH_HPP
 
+#include <cstdlib>
 #include <sstream>
 #include <string>
 
@@ -80,6 +81,64 @@ inline bool cpu_load_percent(const CpuJiffies &prev, const CpuJiffies &cur,
     }
     *percent = 100.0 * static_cast<double>(dtotal - didle)
                / static_cast<double>(dtotal);
+    return true;
+}
+
+/**
+ * @brief      parse the millidegree text from a thermal_zone temp file
+ * @param[in]  text is the file's contents, e.g. "48312\n"
+ * @param[out] celsius receives the parsed temperature on success
+ * @return     true when, after stripping at most one trailing newline,
+ *             the whole remaining string is a valid integer; false on
+ *             an empty string or any non-numeric trailing content
+ */
+inline bool parse_millidegrees(const std::string &text, double *celsius)
+{
+    std::string trimmed = text;
+    if (!trimmed.empty() && trimmed.back() == '\n') {
+        trimmed.pop_back();
+    }
+    if (trimmed.empty()) {
+        return false;
+    }
+
+    char *end = nullptr;
+    long millidegrees = std::strtol(trimmed.c_str(), &end, 10);
+    if (end != trimmed.c_str() + trimmed.size()) {
+        return false;
+    }
+
+    *celsius = static_cast<double>(millidegrees) / 1000.0;
+    return true;
+}
+
+/**
+ * @brief      compute root-filesystem use percent from statvfs fields
+ * @param[in]  blocks is f_blocks, the total block count
+ * @param[in]  bfree is f_bfree, the free block count
+ * @param[in]  bavail is f_bavail, the block count available to a
+ *             non-privileged user
+ * @param[out] percent receives the use percentage on success, matching
+ *             `df`'s Use% formula
+ * @return     false when `bfree` exceeds `blocks` or `used + bavail` is
+ *             0; true otherwise, with `*percent` set to
+ *             `100 * used / (used + bavail)`, `used` being
+ *             `blocks - bfree`
+ */
+inline bool disk_used_percent(unsigned long long blocks,
+                               unsigned long long bfree,
+                               unsigned long long bavail, double *percent)
+{
+    if (bfree > blocks) {
+        return false;
+    }
+    unsigned long long used = blocks - bfree;
+    unsigned long long denominator = used + bavail;
+    if (denominator == 0) {
+        return false;
+    }
+    *percent = 100.0 * static_cast<double>(used)
+               / static_cast<double>(denominator);
     return true;
 }
 

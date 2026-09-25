@@ -1,0 +1,103 @@
+/**
+ * @file      test_pi_health_parsers.cpp
+ * @brief     hand-computed fixture tests for pi_health.hpp
+ * @author    Davide Colabella
+ *
+ * Every expected value below is hand-computed in the comment right
+ * above the assertion that checks it, following
+ * test_depth_conversion.cpp's convention.
+ */
+
+#include <gtest/gtest.h>
+
+#include "nereo_sensors_pkg/pi_health.hpp"
+
+// ── parse_proc_stat_cpu / cpu_load_percent ──────────────────────────────
+
+TEST(ParseProcStatCpu, AggregateLineFiftyPercentLoad)
+{
+    CpuJiffies prev{};
+    CpuJiffies cur{};
+    ASSERT_TRUE(parse_proc_stat_cpu(
+        "cpu  100 0 100 800 0 0 0 0 0 0", &prev));
+    ASSERT_TRUE(parse_proc_stat_cpu(
+        "cpu  150 0 150 900 0 0 0 0 0 0", &cur));
+
+    // prev: total = 100+0+100+800 = 1000, idle = 800
+    // cur:  total = 150+0+150+900 = 1200, idle = 900
+    // dtotal = 200, didle = 100
+    // load = 100 * (200 - 100) / 200 = 50.0
+    double percent = 0.0;
+    ASSERT_TRUE(cpu_load_percent(prev, cur, &percent));
+    EXPECT_NEAR(50.0, percent, 1e-6);
+}
+
+TEST(ParseProcStatCpu, PerCoreLineIsRejected)
+{
+    CpuJiffies out{};
+    EXPECT_FALSE(parse_proc_stat_cpu("cpu0 100 0 100 800", &out));
+}
+
+TEST(ParseProcStatCpu, BareLabelIsRejected)
+{
+    CpuJiffies out{};
+    EXPECT_FALSE(parse_proc_stat_cpu("cpu", &out));
+}
+
+TEST(ParseProcStatCpu, NonNumericFieldIsRejected)
+{
+    CpuJiffies out{};
+    EXPECT_FALSE(parse_proc_stat_cpu("cpu 100 abc 100 800", &out));
+}
+
+TEST(CpuLoadPercent, EqualTotalIsRejected)
+{
+    CpuJiffies prev{1000, 800};
+    CpuJiffies cur{1000, 800};
+    double percent = 0.0;
+    EXPECT_FALSE(cpu_load_percent(prev, cur, &percent));
+}
+
+// ── parse_millidegrees ───────────────────────────────────────────────
+
+TEST(ParseMillidegrees, TrailingNewlineIsTrimmed)
+{
+    // 48312 / 1000 = 48.312
+    double celsius = 0.0;
+    ASSERT_TRUE(parse_millidegrees("48312\n", &celsius));
+    EXPECT_NEAR(48.312, celsius, 1e-9);
+}
+
+TEST(ParseMillidegrees, EmptyStringIsRejected)
+{
+    double celsius = 0.0;
+    EXPECT_FALSE(parse_millidegrees("", &celsius));
+}
+
+TEST(ParseMillidegrees, NonNumericIsRejected)
+{
+    double celsius = 0.0;
+    EXPECT_FALSE(parse_millidegrees("abc", &celsius));
+}
+
+// ── disk_used_percent ────────────────────────────────────────────────
+
+TEST(DiskUsedPercent, TypicalUsage)
+{
+    // used = 1000 - 400 = 600; 100 * 600 / (600 + 350) = 63.15789...
+    double percent = 0.0;
+    ASSERT_TRUE(disk_used_percent(1000, 400, 350, &percent));
+    EXPECT_NEAR(63.158, percent, 1e-3);
+}
+
+TEST(DiskUsedPercent, ZeroBlocksIsRejected)
+{
+    double percent = 0.0;
+    EXPECT_FALSE(disk_used_percent(0, 0, 0, &percent));
+}
+
+TEST(DiskUsedPercent, BfreeGreaterThanBlocksIsRejected)
+{
+    double percent = 0.0;
+    EXPECT_FALSE(disk_used_percent(100, 200, 0, &percent));
+}
