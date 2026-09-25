@@ -101,3 +101,87 @@ TEST(DiskUsedPercent, BfreeGreaterThanBlocksIsRejected)
     double percent = 0.0;
     EXPECT_FALSE(disk_used_percent(100, 200, 0, &percent));
 }
+
+// ── parse_throttled / decode_throttled ──────────────────────────────
+
+TEST(ParseThrottled, PrefixedHexIsAccepted)
+{
+    uint32_t bits = 0;
+    ASSERT_TRUE(parse_throttled("throttled=0x50005\n", &bits));
+    EXPECT_EQ(0x50005u, bits);
+}
+
+TEST(ParseThrottled, ZeroXPrefixedHexWithNoLabelIsAccepted)
+{
+    uint32_t bits = 0;
+    ASSERT_TRUE(parse_throttled("0x50005", &bits));
+    EXPECT_EQ(0x50005u, bits);
+}
+
+TEST(ParseThrottled, BareHexIsAccepted)
+{
+    // The Pi's own sysfs get_throttled file has no "0x" and no
+    // "throttled=" label at all -- just the hex digits plus a newline.
+    uint32_t bits = 0;
+    ASSERT_TRUE(parse_throttled("50005\n", &bits));
+    EXPECT_EQ(0x50005u, bits);
+}
+
+TEST(ParseThrottled, EmptyAfterLabelIsRejected)
+{
+    uint32_t bits = 0;
+    EXPECT_FALSE(parse_throttled("throttled=", &bits));
+}
+
+TEST(ParseThrottled, NonHexIsRejected)
+{
+    uint32_t bits = 0;
+    EXPECT_FALSE(parse_throttled("zz", &bits));
+}
+
+TEST(DecodeThrottled, UnderVoltageAndThrottledNowAndSinceBoot)
+{
+    // 0x50005 = 327685 decimal = bits 0, 2, 16 and 18 set:
+    //   under_voltage_now (0), throttled_now (2),
+    //   under_voltage_since_boot (16), throttled_since_boot (18) --
+    //   and no other flag.
+    ThrottleFlags flags = decode_throttled(0x50005);
+    EXPECT_TRUE(flags.under_voltage_now);
+    EXPECT_FALSE(flags.freq_capped_now);
+    EXPECT_TRUE(flags.throttled_now);
+    EXPECT_FALSE(flags.soft_temp_limit_now);
+    EXPECT_TRUE(flags.under_voltage_since_boot);
+    EXPECT_FALSE(flags.freq_capped_since_boot);
+    EXPECT_TRUE(flags.throttled_since_boot);
+    EXPECT_FALSE(flags.soft_temp_limit_since_boot);
+}
+
+TEST(DecodeThrottled, ZeroSetsNothing)
+{
+    ThrottleFlags flags = decode_throttled(0);
+    EXPECT_FALSE(flags.under_voltage_now);
+    EXPECT_FALSE(flags.freq_capped_now);
+    EXPECT_FALSE(flags.throttled_now);
+    EXPECT_FALSE(flags.soft_temp_limit_now);
+    EXPECT_FALSE(flags.under_voltage_since_boot);
+    EXPECT_FALSE(flags.freq_capped_since_boot);
+    EXPECT_FALSE(flags.throttled_since_boot);
+    EXPECT_FALSE(flags.soft_temp_limit_since_boot);
+}
+
+// ── is_agent_comm ────────────────────────────────────────────────────
+
+TEST(IsAgentComm, ExactNamePlusNewlineIsAccepted)
+{
+    EXPECT_TRUE(is_agent_comm("micro_ros_agent\n"));
+}
+
+TEST(IsAgentComm, OneCharacterShorterIsRejected)
+{
+    EXPECT_FALSE(is_agent_comm("micro_ros_agen\n"));
+}
+
+TEST(IsAgentComm, LongerIsRejected)
+{
+    EXPECT_FALSE(is_agent_comm("micro_ros_agentx\n"));
+}

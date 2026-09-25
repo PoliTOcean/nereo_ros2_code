@@ -10,20 +10,34 @@
  * key's value to PI_HEALTH_UNAVAILABLE and the status level to ERROR;
  * every other key keeps publishing on schedule (T-06-11).
  *
- * Key contract (KeyValue keys on `pi_health`):
- *   cpu_load_percent   -- CPU load, %, filled here
- *   soc_temp_c         -- SoC temperature, degrees C, filled here
- *   disk_used_percent  -- root filesystem use, %, filled here
+ * Key contract (KeyValue keys on `pi_health`), in this exact order,
+ * matching gui_pkg/freshness.py's THROTTLE_FLAGS tuple:
+ *   cpu_load_percent   -- CPU load, %
+ *   soc_temp_c         -- SoC temperature, degrees C
+ *   disk_used_percent  -- root filesystem use, %
  *   under_voltage_now, freq_capped_now, throttled_now,
  *   soft_temp_limit_now, under_voltage_since_boot,
  *   freq_capped_since_boot, throttled_since_boot,
- *   soft_temp_limit_since_boot, throttled_raw, agent_running
- *                      -- filled in 06-04
+ *   soft_temp_limit_since_boot, throttled_raw
+ *                      -- decoded from THROTTLE_SYSFS_PATH (below)
+ *   agent_running      -- "true"/"false", from a /proc scan for
+ *                          AGENT_PROCESS_COMM (pi_health.hpp)
+ *
+ * 06-04 probe findings on this Pi (Ubuntu 24.04 noble, Pi 5): BOTH
+ * `vcgencmd get_throttled` (`/usr/bin/vcgencmd`, prints
+ * "throttled=0x0\n") and the sysfs file
+ * `/sys/devices/platform/soc/soc:firmware/get_throttled` (prints the
+ * bare hex "0\n", no label) exist. Per the plan's stated priority, the
+ * sysfs file wins -- it needs no fork/exec, unlike popen("vcgencmd
+ * ..."). See THROTTLE_SYSFS_PATH below.
  */
 
 #include <sys/statvfs.h>
 
+#include <algorithm>
+#include <cctype>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <string>
 
@@ -36,6 +50,11 @@
 #include "nereo_sensors_pkg/qos_profiles.hpp"
 
 using namespace std::chrono_literals;
+
+// 06-04 probe: present on this Pi 5 (Ubuntu 24.04 noble), needs no
+// fork/exec unlike popen("vcgencmd get_throttled"). See file header.
+constexpr char THROTTLE_SYSFS_PATH[] =
+    "/sys/devices/platform/soc/soc:firmware/get_throttled";
 
 class PublisherPiHealth : public rclcpp::Node
 {
@@ -68,6 +87,8 @@ private:
         array.status.push_back(build_cpu_status());
         array.status.push_back(build_temp_status());
         array.status.push_back(build_disk_status());
+        array.status.push_back(build_throttle_status());
+        array.status.push_back(build_agent_status());
 
         health_publisher_->publish(array);
     }
@@ -173,6 +194,114 @@ private:
             status.message = "Failed to statvfs(\"/\")";
             RCLCPP_WARN(this->get_logger(),
                         "Failed to read root filesystem use");
+        }
+
+        status.values.push_back(kv);
+        return status;
+    }
+
+    diagnostic_msgs::msg::DiagnosticStatus build_throttle_status()
+    {
+        auto status = diagnostic_msgs::msg::DiagnosticStatus();
+        status.name = "Pi throttling";
+
+        std::ifstream throttle_file(THROTTLE_SYSFS_PATH);
+        std::string text;
+        uint32_t bits = 0;
+        bool ok = throttle_file.is_open() &&
+                  std::getline(throttle_file, text) &&
+                  parse_throttled(text, &bits);
+
+        auto push = [&status](const char *key, const std::string &value) {
+            diagnostic_msgs::msg::KeyValue kv;
+            kv.key = key;
+            kv.value = value;
+            status.values.push_back(kv);
+        };
+
+        if (ok) {
+            ThrottleFlags flags = decode_throttled(bits);
+            push("under_voltage_now",
+                 flags.under_voltage_now ? "true" : "false");
+            push("freq_capped_now", flags.freq_capped_now ? "true" : "false");
+            push("throttled_now", flags.throttled_now ? "true" : "false");
+            push("soft_temp_limit_now",
+                 flags.soft_temp_limit_now ? "true" : "false");
+            push("under_voltage_since_boot",
+                 flags.under_voltage_since_boot ? "true" : "false");
+            push("freq_capped_since_boot",
+                 flags.freq_capped_since_boot ? "true" : "false");
+            push("throttled_since_boot",
+                 flags.throttled_since_boot ? "true" : "false");
+            push("soft_temp_limit_since_boot",
+                 flags.soft_temp_limit_since_boot ? "true" : "false");
+
+            char buf[16];
+            std::snprintf(buf, sizeof(buf), "0x%X", bits);
+            push("throttled_raw", buf);
+
+            bool alert = flags.under_voltage_now || flags.freq_capped_now ||
+                         flags.throttled_now || flags.soft_temp_limit_now;
+            status.level = alert
+                ? diagnostic_msgs::msg::DiagnosticStatus::WARN
+                : diagnostic_msgs::msg::DiagnosticStatus::OK;
+            status.message = alert ? "Pi is throttled right now"
+                                    : "Pi throttling read correctly";
+        } else {
+            for (const char *key :
+                 {"under_voltage_now", "freq_capped_now", "throttled_now",
+                  "soft_temp_limit_now", "under_voltage_since_boot",
+                  "freq_capped_since_boot", "throttled_since_boot",
+                  "soft_temp_limit_since_boot", "throttled_raw"}) {
+                push(key, PI_HEALTH_UNAVAILABLE);
+            }
+            status.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+            status.message =
+                std::string("Failed to read ") + THROTTLE_SYSFS_PATH;
+            RCLCPP_WARN(this->get_logger(), "Failed to read Pi throttling");
+        }
+
+        return status;
+    }
+
+    diagnostic_msgs::msg::DiagnosticStatus build_agent_status()
+    {
+        auto status = diagnostic_msgs::msg::DiagnosticStatus();
+        status.name = "micro-ROS agent";
+        diagnostic_msgs::msg::KeyValue kv;
+        kv.key = "agent_running";
+
+        std::error_code ec;
+        bool running = false;
+        for (const auto &entry :
+             std::filesystem::directory_iterator("/proc", ec)) {
+            const std::string pid_name = entry.path().filename().string();
+            bool all_digits =
+                !pid_name.empty() &&
+                std::all_of(pid_name.begin(), pid_name.end(),
+                            [](unsigned char c) { return std::isdigit(c); });
+            if (!all_digits) {
+                continue;
+            }
+            std::ifstream comm_file(entry.path() / "comm");
+            std::string comm;
+            if (comm_file.is_open() && std::getline(comm_file, comm) &&
+                is_agent_comm(comm)) {
+                running = true;
+                break;
+            }
+        }
+
+        if (!ec) {
+            kv.value = running ? "true" : "false";
+            status.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
+            status.message = running ? "micro-ROS agent process found"
+                                      : "micro-ROS agent process not found";
+        } else {
+            kv.value = PI_HEALTH_UNAVAILABLE;
+            status.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+            status.message = "Failed to scan /proc for the agent process";
+            RCLCPP_WARN(this->get_logger(), "Failed to scan /proc");
         }
 
         status.values.push_back(kv);

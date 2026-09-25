@@ -12,12 +12,24 @@
 #ifndef PI_HEALTH_HPP
 #define PI_HEALTH_HPP
 
+#include <cstdint>
 #include <cstdlib>
 #include <sstream>
 #include <string>
 
 /** @brief the literal published for a key whose read or parse failed */
 constexpr char PI_HEALTH_UNAVAILABLE[] = "unavailable";
+
+/**
+ * @brief the micro-ROS agent's OS process name
+ *
+ * Confirmed against SETUP_RPI/micro_ros_connect.sh's own invocation --
+ * `ros2 run micro_ros_agent micro_ros_agent serial -b 115200 --dev
+ * /dev/ttyAMA0` -- so this is the literal second argument to `ros2 run`,
+ * not a guess. It is exactly 15 characters, so /proc/<pid>/comm (which
+ * truncates at 15) never mangles it.
+ */
+constexpr char AGENT_PROCESS_COMM[] = "micro_ros_agent";
 
 /** @brief one /proc/stat aggregate CPU sample, in jiffies */
 struct CpuJiffies
@@ -140,6 +152,101 @@ inline bool disk_used_percent(unsigned long long blocks,
     *percent = 100.0 * static_cast<double>(used)
                / static_cast<double>(denominator);
     return true;
+}
+
+/**
+ * @brief      parse a get_throttled reading into its raw 32-bit value
+ * @param[in]  text is the reading. This Pi's own sysfs
+ *             get_throttled file has no label and no "0x" at all, just
+ *             the bare hex digits plus a trailing newline (e.g. "0\n");
+ *             `vcgencmd get_throttled` instead prints
+ *             "throttled=0x50005\n". Both forms, and a bare "0x50005"
+ *             with no trailing newline, are accepted
+ * @param[out] bits receives the parsed value on success
+ * @return     true when, after stripping one trailing newline, an
+ *             optional "throttled=" prefix and an optional "0x", the
+ *             remainder is a non-empty valid hex number consumed in
+ *             full; false otherwise (including an empty remainder
+ *             after stripping "throttled=")
+ */
+inline bool parse_throttled(const std::string &text, uint32_t *bits)
+{
+    std::string trimmed = text;
+    if (!trimmed.empty() && trimmed.back() == '\n') {
+        trimmed.pop_back();
+    }
+
+    const std::string label = "throttled=";
+    if (trimmed.compare(0, label.size(), label) == 0) {
+        trimmed.erase(0, label.size());
+    }
+    if (trimmed.compare(0, 2, "0x") == 0) {
+        trimmed.erase(0, 2);
+    }
+    if (trimmed.empty()) {
+        return false;
+    }
+
+    char *end = nullptr;
+    unsigned long value = std::strtoul(trimmed.c_str(), &end, 16);
+    if (end != trimmed.c_str() + trimmed.size()) {
+        return false;
+    }
+
+    *bits = static_cast<uint32_t>(value);
+    return true;
+}
+
+/** @brief the eight get_throttled flags decode_throttled() fills */
+struct ThrottleFlags
+{
+    bool under_voltage_now = false;
+    bool freq_capped_now = false;
+    bool throttled_now = false;
+    bool soft_temp_limit_now = false;
+    bool under_voltage_since_boot = false;
+    bool freq_capped_since_boot = false;
+    bool throttled_since_boot = false;
+    bool soft_temp_limit_since_boot = false;
+};
+
+/**
+ * @brief      decode a get_throttled raw value into named flags
+ * @param[in]  bits is the raw value parse_throttled() produced
+ * @return     the eight flags, each true exactly when its bit is set in
+ *             `bits`: bits 0-3 are the "now" flags (under-voltage,
+ *             frequency capped, throttled, soft temperature limit) and
+ *             bits 16-19 are the matching "since boot" flags; every
+ *             other bit is ignored
+ */
+inline ThrottleFlags decode_throttled(uint32_t bits)
+{
+    ThrottleFlags flags;
+    flags.under_voltage_now = (bits & (1u << 0)) != 0;
+    flags.freq_capped_now = (bits & (1u << 1)) != 0;
+    flags.throttled_now = (bits & (1u << 2)) != 0;
+    flags.soft_temp_limit_now = (bits & (1u << 3)) != 0;
+    flags.under_voltage_since_boot = (bits & (1u << 16)) != 0;
+    flags.freq_capped_since_boot = (bits & (1u << 17)) != 0;
+    flags.throttled_since_boot = (bits & (1u << 18)) != 0;
+    flags.soft_temp_limit_since_boot = (bits & (1u << 19)) != 0;
+    return flags;
+}
+
+/**
+ * @brief      check whether a /proc/<pid>/comm reading names the agent
+ * @param[in]  comm is the file's contents, e.g. "micro_ros_agent\n"
+ * @return     true when, after stripping one trailing newline, `comm`
+ *             equals AGENT_PROCESS_COMM exactly; false for anything
+ *             shorter, longer, or otherwise different
+ */
+inline bool is_agent_comm(const std::string &comm)
+{
+    std::string trimmed = comm;
+    if (!trimmed.empty() && trimmed.back() == '\n') {
+        trimmed.pop_back();
+    }
+    return trimmed == AGENT_PROCESS_COMM;
 }
 
 #endif  // PI_HEALTH_HPP
