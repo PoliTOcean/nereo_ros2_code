@@ -6,22 +6,68 @@ import QtQuick.Window 2.15
 Window {
     id: root
     property bool rovArmed: false
+    property var vehicleStatus: ({"groups": []})
     signal armRequested(bool armed)
 
-    width: 560
-    height: 420
+    width: 600
+    height: 760
     title: "Control Panel"
     visible: false
     color: "#1f2328"
     flags: Qt.Dialog
 
-    ListModel {
-        id: peripheralModel
-        ListElement { name: "Camera"; status: "OK"; icon: "📹" }
-        ListElement { name: "Barometer"; status: "OK"; icon: "🌡" }
-        ListElement { name: "IMU"; status: "OK"; icon: "🧭" }
-        ListElement { name: "Thrusters"; status: "OK"; icon: "🚀" }
-        ListElement { name: "Diagnostic MicroROS"; status: "OK"; icon: "📋" }
+    // Render-only status row: value, unit, badge pill, age. Branches only
+    // on the pre-computed badge strings and the alert flag handed down
+    // from gui_node — no clock, no arithmetic (PANEL-13).
+    component StatusRow: Rectangle {
+        property var row
+        Layout.fillWidth: true
+        Layout.preferredHeight: 26
+        color: "#23272d"
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 6
+            spacing: 6
+
+            Text {
+                text: row.label
+                color: "#cbd5df"
+                font.pixelSize: 12
+                Layout.fillWidth: true
+            }
+            Text {
+                text: row.unit !== ""
+                      ? row.text + " " + row.unit
+                      : row.text
+                color: row.alert ? "#ffcc00" : "#e6edf3"
+                font.pixelSize: 13
+            }
+            Rectangle {
+                width: 74
+                height: 18
+                radius: 9
+                color: row.badge === "OK" ? "#1b4d6b"
+                     : row.badge === "STALE" ? "#7a6a1b" : "#7a2b2b"
+                border.color: row.badge === "OK" ? "#4cc6ff"
+                            : row.badge === "STALE" ? "#e0c050" : "#e06666"
+                border.width: 1
+                Text {
+                    anchors.centerIn: parent
+                    text: row.badge
+                    color: "#e6edf3"
+                    font.pixelSize: 10
+                    font.bold: true
+                }
+            }
+            Text {
+                text: row.age
+                color: "#8aa1b3"
+                font.pixelSize: 11
+                width: 40
+                horizontalAlignment: Text.AlignRight
+            }
+        }
     }
 
     Rectangle {
@@ -80,50 +126,58 @@ Window {
                 border.width: 1
                 radius: 4
 
-                ColumnLayout {
+                ScrollView {
                     anchors.fill: parent
                     anchors.margins: 6
-                    spacing: 6
+                    clip: true
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 26
-                        color: "#2b3138"
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: 6
-                            spacing: 6
-                            Text { text: "Peripheral"; color: "#cbd5df"; font.pixelSize: 12; Layout.fillWidth: true }
-                            Text { text: "Status"; color: "#cbd5df"; font.pixelSize: 12; width: 100; horizontalAlignment: Text.AlignHCenter }
-                        }
-                    }
+                    ColumnLayout {
+                        width: parent.width
+                        spacing: 10
 
-                    Repeater {
-                        model: peripheralModel
-                        delegate: Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 28
-                            color: index % 2 === 0 ? "#23272d" : "#1f2328"
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.margins: 6
-                                spacing: 6
-                                Text { text: icon; color: "#cfefff"; font.pixelSize: 12 }
-                                Text { text: (index + 1) + " " + name; color: "#e6edf3"; font.pixelSize: 12; Layout.fillWidth: true }
-                                Rectangle {
-                                    width: 70
-                                    height: 18
-                                    radius: 9
-                                    color: status === "OK" ? "#1b4d6b" : "#7a2b2b"
-                                    border.color: status === "OK" ? "#4cc6ff" : "#e06666"
-                                    border.width: 1
+                        Repeater {
+                            model: root.vehicleStatus.groups
+                            delegate: ColumnLayout {
+                                property var group: modelData
+                                Layout.fillWidth: true
+                                spacing: 2
+
+                                RowLayout {
+                                    Layout.fillWidth: true
                                     Text {
-                                        anchors.centerIn: parent
-                                        text: status
-                                        color: "#e6edf3"
-                                        font.pixelSize: 11
+                                        text: group.name
+                                        color: "#cfefff"
+                                        font.pixelSize: 12
                                         font.bold: true
+                                        Layout.fillWidth: true
                                     }
+                                    Rectangle {
+                                        visible: group.badge !== ""
+                                        width: 74
+                                        height: 18
+                                        radius: 9
+                                        color: "#7a2b2b"
+                                        border.color: "#e06666"
+                                        border.width: 1
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: group.badge
+                                            color: "#e6edf3"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                        }
+                                    }
+                                    Text {
+                                        visible: group.badge !== ""
+                                        text: group.note
+                                        color: "#8aa1b3"
+                                        font.pixelSize: 11
+                                    }
+                                }
+
+                                Repeater {
+                                    model: group.rows
+                                    delegate: StatusRow { row: modelData }
                                 }
                             }
                         }

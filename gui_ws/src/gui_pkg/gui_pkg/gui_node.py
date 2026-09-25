@@ -1,6 +1,7 @@
 import sys
 import os
 import math
+import time
 import gi
 import rclpy
 import threading
@@ -31,6 +32,7 @@ from std_srvs.srv import Trigger
 from rcl_interfaces.msg import ParameterType, ParameterValue, Parameter as ParameterMsg
 from rcl_interfaces.srv import GetParameters, SetParameters
 from . import PoliciesUtils
+from . import freshness
 
 
 class CamStreamer:
@@ -700,6 +702,48 @@ class ControllerBridge(QObject):
         self.pid_terms_changed.emit(list(msg.data))
 
 
+class StatusBridge(QObject):
+    """
+    Computes the Control Panel's read-only vehicle-status model.
+
+    ROS callbacks (via ros_bridge's existing per-message signals) only
+    record a raw (value, receipt-time) pair; a QTimer at
+    freshness.STATUS_PUSH_MS classifies freshness for every field and
+    pushes the model to QML — never the other way around (PANEL-13,
+    PANEL-14).
+    """
+    status_changed = pyqtSignal()
+
+    def __init__(self, node: Node, ros_bridge: ROSQmlBridge):
+        super().__init__()
+        self._node = node
+        self._raw = {}
+
+        ros_bridge.depth_changed.connect(
+            lambda v: self.record('depth', v))
+
+        self._status = freshness.build_status(self._raw, time.monotonic())
+
+        self._push_timer = QTimer()
+        self._push_timer.timeout.connect(self.refresh)
+        self._push_timer.start(freshness.STATUS_PUSH_MS)
+
+    @pyqtProperty('QVariant', notify=status_changed)
+    def vehicleStatus(self):
+        return self._status
+
+    def record(self, key, value):
+        self._raw[key] = (value, time.monotonic())
+
+    def refresh(self, now=None):
+        if now is None:
+            now = time.monotonic()
+        model = freshness.build_status(self._raw, now)
+        if model != self._status:
+            self._status = model
+            self.status_changed.emit()
+
+
 def main():
     rclpy.init(args=sys.argv)
     node = Node('gui_node')
@@ -719,10 +763,12 @@ def main():
     bridge            = ROSQmlBridge(node)
     sonar_bridge      = SonarBridge(node, sonar_renderer)
     controller_bridge = ControllerBridge(node)
+    status_bridge     = StatusBridge(node, bridge)
 
     engine.rootContext().setContextProperty("RosBridge",        bridge)
     engine.rootContext().setContextProperty("SonarBridge",      sonar_bridge)
     engine.rootContext().setContextProperty("ControllerBridge", controller_bridge)
+    engine.rootContext().setContextProperty("StatusBridge",     status_bridge)
 
     package_share_dir = get_package_share_directory('gui_pkg')
     qml_file_path = os.path.join(package_share_dir, 'qml', 'main.qml')

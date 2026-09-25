@@ -171,6 +171,7 @@ ApplicationWindow {
     ControlPanelWindow {
         id: controlPanelWindow
         rovArmed: window.rovArmed
+        vehicleStatus: StatusBridge.vehicleStatus
         onArmRequested: (armed) => {
             sendArmCommand(armed)
         }
