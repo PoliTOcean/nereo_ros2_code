@@ -84,7 +84,7 @@ main() {
         source '$VENV_DIR/bin/activate' && \
         source /opt/ros/jazzy/setup.bash && \
         source '$WS_DIR/install/setup.bash' && \
-        ros2 run gui_pkg gui_node; \
+        ros2 run gui_pkg workstation.launch.py; \
         exec bash
     "
     
@@ -94,15 +94,6 @@ main() {
         exit 1
     fi
 
-    # Split verticale con il secondo nodo
-    tmux split-window -h -t $SESSION:0 bash -c "
-        source '$VENV_DIR/bin/activate' && \
-        source /opt/ros/jazzy/setup.bash && \
-        source '$WS_DIR/install/setup.bash' && \
-        ros2 run joystick_pkg joy_to_cmdvel; \
-        exec bash
-    "
-    
     # Riabilita set -e
     set -e
 

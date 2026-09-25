@@ -31,5 +31,3 @@ unit_tests/barometer_unit_test/libiic.a
 __pycache__/
 **/__pycache__/
 SETUP_RPI/dweos_evidence/
-
-/autostart_scripts/nereo_interfaces/
