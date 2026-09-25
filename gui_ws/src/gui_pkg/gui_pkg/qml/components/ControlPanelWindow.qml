@@ -9,6 +9,7 @@ Window {
     property var vehicleStatus: ({
         "armed": {"label": "ROV", "text": "—", "unit": "",
                    "badge": "NO DATA", "age": "—", "alert": false},
+        "control": [],
         "groups": []
     })
     signal armRequested(bool armed)
@@ -155,6 +156,20 @@ Window {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     font: parent.font
+                }
+            }
+
+            // Control mode row(s): DIRECT/CONTROLLER from
+            // /joy_control_active, plus the controller's own mode when
+            // CONTROLLER is active (PANEL-02, D-12). Render-only, same
+            // pre-computed badge/text contract as StatusRow.
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+
+                Repeater {
+                    model: root.vehicleStatus.control
+                    delegate: StatusRow { row: modelData }
                 }
             }
 

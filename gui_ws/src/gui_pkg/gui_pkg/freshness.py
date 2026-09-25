@@ -60,6 +60,40 @@ BADGE_LINK_DOWN = 'LINK DOWN'
 PWM_MIN_US = 1330
 PWM_MAX_US = 1670
 
+# Graph poll cadence and node-liveness window (D-11). NODE_ALIVE_S allows
+# two missed 1 Hz polls before a node reads not running.
+NODE_POLL_MS = 1000
+NODE_ALIVE_S = 2.5
+
+# Node names backing the control rows, mirroring the real registered
+# names (joy_to_cmdvel.py:54, nereo_controller_node.cpp:106), not the
+# package/executable names.
+JOY_NODE = 'joy_to_cmd_vel'
+CONTROLLER_NODE = 'nereo_controller_node'
+
+# D-11 defaults for the ROS NODES group's expected_nodes parameter, with
+# two corrections over the decision text: joy_to_cmd_vel is the name the
+# node actually registers (not joy_to_cmdvel), and pi_health_publisher is
+# 06-03's new Pi node, following bar_publisher and imu_publisher.
+DEFAULT_EXPECTED_NODES = [
+    'bar_publisher',
+    'imu_publisher',
+    'sonar_node',
+    'pi_health_publisher',
+    'nereo_controller_node',
+    'safety_node',
+    'joy_to_cmd_vel',
+]
+
+# Mirrors the ControlMode enum order in nereo_controller_node.cpp
+# lines 99-104.
+CONTROLLER_MODE_NAMES = {
+    0: 'PASSTHROUGH',
+    1: 'PID',
+    2: 'PID ANTI-WINDUP',
+    3: 'CS',
+}
+
 
 def classify_freshness(t_received, now, stale_s, nodata_s):
     """Classify a value's freshness from its receipt time.
@@ -199,7 +233,89 @@ def _thruster_rows(raw, now):
     return rows
 
 
-def build_status(raw, now):
+def node_alive(name, node_last_seen, now):
+    """Return True when a node was last seen within NODE_ALIVE_S.
+
+    Args:
+        name: the ROS node name to check.
+        node_last_seen: dict mapping a node name to the monotonic time
+            it was last seen in the graph, or None/empty when nothing
+            has been polled yet.
+        now: current monotonic time.
+
+    Returns:
+        False when the node was never seen or was last seen longer ago
+        than NODE_ALIVE_S; True otherwise.
+    """
+    t = (node_last_seen or {}).get(name)
+    if t is None:
+        return False
+    return (now - t) <= NODE_ALIVE_S
+
+
+def classify_event(t_received, publisher_alive):
+    """Classify an event-driven value's freshness (D-12).
+
+    Unlike classify_freshness, an event value (e.g. control mode) is
+    published only on change, so its own age says nothing about
+    staleness -- only whether its publisher is still in the graph does.
+
+    Args:
+        t_received: monotonic time the value was last received, or None
+            if it has never been received.
+        publisher_alive: whether the publishing node is currently live
+            in the ROS graph (see node_alive).
+
+    Returns:
+        BADGE_NO_DATA when never received, BADGE_OK while the publisher
+        is alive, BADGE_STALE once it has left the graph -- a
+        last-known value is never shown as OK after its publisher died.
+    """
+    if t_received is None:
+        return BADGE_NO_DATA
+    if publisher_alive:
+        return BADGE_OK
+    return BADGE_STALE
+
+
+def _control_rows(raw, now, node_last_seen):
+    """Build the control-mode rows (PANEL-02, D-12)."""
+    active_value, active_t = raw.get('control_active', (None, None))
+    active_alive = node_alive(JOY_NODE, node_last_seen, now)
+    text = NO_VALUE if active_value is None else (
+        'CONTROLLER' if active_value else 'DIRECT')
+    rows = [make_row(
+        'Control mode', text, '',
+        classify_event(active_t, active_alive),
+        format_age(active_t, now))]
+
+    if active_value is True:
+        mode_value, mode_t = raw.get('control_mode', (None, None))
+        mode_alive = node_alive(CONTROLLER_NODE, node_last_seen, now)
+        mode_text = (NO_VALUE if mode_value is None
+                     else CONTROLLER_MODE_NAMES.get(
+                         mode_value, f'UNKNOWN ({mode_value})'))
+        rows.append(make_row(
+            'Controller', mode_text, '',
+            classify_event(mode_t, mode_alive),
+            format_age(mode_t, now)))
+    return rows
+
+
+def _ros_nodes_group(expected_nodes, node_last_seen, now):
+    """Build the ROS NODES group, in expected_nodes order (PANEL-09)."""
+    rows = []
+    for name in expected_nodes:
+        alive = node_alive(name, node_last_seen, now)
+        t = (node_last_seen or {}).get(name)
+        rows.append(make_row(
+            name, 'running' if alive else 'not running', '',
+            BADGE_OK if alive else BADGE_NO_DATA,
+            format_age(t, now)))
+    return {'name': 'ROS NODES', 'badge': '', 'note': '', 'rows': rows}
+
+
+def build_status(raw, now, expected_nodes=(), node_last_seen=None):
     """Build the full status model from raw field readings.
 
     Args:
@@ -207,11 +323,16 @@ def build_status(raw, now):
             A field never received is simply absent from raw.
         now: current monotonic time, used for every freshness/age
             computation in the returned model.
+        expected_nodes: node names for the ROS NODES group, in the
+            order they should be displayed.
+        node_last_seen: dict mapping a node name to the monotonic time
+            it was last seen in the graph (from a 1 Hz poll).
 
     Returns:
-        A dict with 'armed' (the ROV row) and 'groups', a list of group
-        dicts (a list, not a dict, so QML's QVariantMap key-sorting
-        cannot reorder groups). Each group is
+        A dict with 'armed' (the ROV row), 'control' (a list of control
+        rows), 'summary' (the header level) and 'groups', a list of
+        group dicts (a list, not a dict, so QML's QVariantMap
+        key-sorting cannot reorder groups). Each group is
         {'name', 'badge', 'note', 'rows'}.
     """
     armed_row, link_down = _armed_row_and_link_down(raw, now)
@@ -238,9 +359,12 @@ def build_status(raw, now):
         'rows': _pi_sensors_rows(raw, now),
     }
 
+    ros_nodes_group = _ros_nodes_group(expected_nodes, node_last_seen, now)
+
     status = {
         'armed': armed_row,
-        'groups': [firmware_group, pi_sensors_group],
+        'control': _control_rows(raw, now, node_last_seen),
+        'groups': [firmware_group, pi_sensors_group, ros_nodes_group],
     }
     status['summary'] = summary_level(status)
     return status

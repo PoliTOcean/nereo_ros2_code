@@ -381,6 +381,128 @@ def test_build_status_empty_raw_summary_is_down():
     assert model['summary'] == 'down'
 
 
+# ── node_alive / classify_event (Task 2) ─────────────────────────────────
+
+def test_node_alive_within_window_is_true():
+    now = freshness.NODE_ALIVE_S
+    assert freshness.node_alive(
+        'bar_publisher', {'bar_publisher': 0.0}, now) is True
+
+
+def test_node_alive_never_seen_is_false():
+    assert freshness.node_alive('bar_publisher', {}, 0.0) is False
+    assert freshness.node_alive('bar_publisher', None, 0.0) is False
+
+
+def test_node_alive_past_window_is_false():
+    now = freshness.NODE_ALIVE_S + 1e-6
+    assert freshness.node_alive(
+        'bar_publisher', {'bar_publisher': 0.0}, now) is False
+
+
+def test_classify_event_never_received_is_no_data():
+    assert freshness.classify_event(None, True) == freshness.BADGE_NO_DATA
+
+
+def test_classify_event_received_and_alive_is_ok():
+    assert freshness.classify_event(0.0, True) == freshness.BADGE_OK
+
+
+def test_classify_event_received_and_dead_is_stale():
+    assert freshness.classify_event(0.0, False) == freshness.BADGE_STALE
+
+
+# ── DEFAULT_EXPECTED_NODES (D-11 research correction, Task 2) ───────────
+
+def test_default_expected_nodes_uses_real_joystick_node_name():
+    assert 'joy_to_cmd_vel' in freshness.DEFAULT_EXPECTED_NODES
+    assert 'joy_to_cmdvel' not in freshness.DEFAULT_EXPECTED_NODES
+    assert 'pi_health_publisher' in freshness.DEFAULT_EXPECTED_NODES
+
+
+# ── ROS NODES group (Task 2, PANEL-09) ───────────────────────────────────
+
+def test_ros_nodes_rows_follow_expected_order_and_liveness():
+    now = 10.0
+    expected = ['bar_publisher', 'imu_publisher', 'sonar_node']
+    node_last_seen = {'bar_publisher': now - 0.1, 'sonar_node': now - 100.0}
+    model = freshness.build_status(
+        {}, now, expected_nodes=expected, node_last_seen=node_last_seen)
+    rows = _group(model, 'ROS NODES')['rows']
+    assert [r['label'] for r in rows] == expected
+    assert rows[0]['text'] == 'running'
+    assert rows[0]['badge'] == freshness.BADGE_OK
+    assert rows[1]['text'] == 'not running'
+    assert rows[1]['badge'] == freshness.BADGE_NO_DATA
+    assert rows[1]['age'] == freshness.NO_VALUE
+    assert rows[2]['text'] == 'not running'
+
+
+# ── control mode rows (Task 2, PANEL-02, D-12) ───────────────────────────
+
+def test_control_mode_direct_when_inactive():
+    now = 1.0
+    raw = {'control_active': (False, 0.0)}
+    node_last_seen = {freshness.JOY_NODE: now - 0.1}
+    model = freshness.build_status(raw, now, node_last_seen=node_last_seen)
+    assert len(model['control']) == 1
+    assert model['control'][0]['label'] == 'Control mode'
+    assert model['control'][0]['text'] == 'DIRECT'
+
+
+def test_control_mode_never_received_reads_dash():
+    model = freshness.build_status({}, 0.0)
+    assert model['control'][0]['text'] == freshness.NO_VALUE
+    assert model['control'][0]['badge'] == freshness.BADGE_NO_DATA
+
+
+def test_control_mode_controller_adds_controller_row():
+    now = 1.0
+    raw = {'control_active': (True, 0.0), 'control_mode': (2, 0.0)}
+    node_last_seen = {freshness.JOY_NODE: now - 0.1,
+                       freshness.CONTROLLER_NODE: now - 0.1}
+    model = freshness.build_status(raw, now, node_last_seen=node_last_seen)
+    assert len(model['control']) == 2
+    assert model['control'][0]['text'] == 'CONTROLLER'
+    assert model['control'][1]['label'] == 'Controller'
+    assert model['control'][1]['text'] == 'PID ANTI-WINDUP'
+    assert model['control'][1]['badge'] == freshness.BADGE_OK
+
+
+def test_control_mode_unknown_value_reads_unknown():
+    now = 1.0
+    raw = {'control_active': (True, 0.0), 'control_mode': (7, 0.0)}
+    node_last_seen = {freshness.JOY_NODE: now - 0.1,
+                       freshness.CONTROLLER_NODE: now - 0.1}
+    model = freshness.build_status(raw, now, node_last_seen=node_last_seen)
+    assert model['control'][1]['text'] == 'UNKNOWN (7)'
+
+
+def test_control_row_goes_stale_when_joy_node_leaves_graph():
+    now = 1.0
+    raw = {'control_active': (False, 0.0)}
+    # joy_to_cmd_vel absent from node_last_seen -- gone from the graph.
+    # A last-known mode must never read OK once its publisher died.
+    model = freshness.build_status(raw, now, node_last_seen={})
+    assert model['control'][0]['badge'] == freshness.BADGE_STALE
+
+
+def test_controller_row_goes_stale_when_controller_node_leaves_graph():
+    now = 1.0
+    raw = {'control_active': (True, 0.0), 'control_mode': (1, 0.0)}
+    node_last_seen = {freshness.JOY_NODE: now - 0.1}
+    model = freshness.build_status(raw, now, node_last_seen=node_last_seen)
+    assert model['control'][1]['badge'] == freshness.BADGE_STALE
+
+
+def test_summary_counts_control_and_node_rows():
+    now = 1.0
+    raw = {'control_active': (True, 0.0), 'control_mode': (1, 0.0)}
+    model = freshness.build_status(
+        raw, now, expected_nodes=['bar_publisher'], node_last_seen={})
+    assert model['summary'] == 'down'
+
+
 def test_badge_transitions_reports_depth_and_firmware_changes():
     old_model = freshness.build_status(
         {'armed': (True, 0.0), 'depth': (1.0, 0.0)}, 0.05)

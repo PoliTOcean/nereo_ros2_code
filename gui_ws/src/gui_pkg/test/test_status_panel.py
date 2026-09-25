@@ -25,7 +25,7 @@ from PyQt6.QtQml import QQmlComponent, QQmlEngine
 from gui_pkg import freshness
 from gui_pkg import PoliciesUtils
 from gui_pkg.gui_node import (
-    ROSQmlBridge, SonarBridge, SonarRenderer, StatusBridge)
+    ControllerBridge, ROSQmlBridge, SonarBridge, SonarRenderer, StatusBridge)
 
 # One QGuiApplication for the whole module -- QML/Quick objects require
 # one to exist, and PyQt6 refuses to construct a second.
@@ -51,7 +51,9 @@ def test_depth_roundtrip(rclpy_context):
     pub_node = Node('status_test_publisher')
     bridge = ROSQmlBridge(status_node)
     sonar_bridge = SonarBridge(status_node, SonarRenderer())
-    status_bridge = StatusBridge(status_node, bridge, sonar_bridge)
+    controller_bridge = ControllerBridge(status_node)
+    status_bridge = StatusBridge(
+        status_node, bridge, sonar_bridge, controller_bridge)
 
     depth_pub = pub_node.create_publisher(
         Float32, 'barometer_depth', PoliciesUtils.sensor_qos)
@@ -91,7 +93,8 @@ def test_refresh_emits_once(rclpy_context):
     node = Node('status_test_refresh_once')
     bridge = ROSQmlBridge(node)
     sonar_bridge = SonarBridge(node, SonarRenderer())
-    status_bridge = StatusBridge(node, bridge, sonar_bridge)
+    controller_bridge = ControllerBridge(node)
+    status_bridge = StatusBridge(node, bridge, sonar_bridge, controller_bridge)
 
     status_bridge.record('depth', 1.0)
 
@@ -112,7 +115,8 @@ def test_record_coalesces(rclpy_context):
     node = Node('status_test_coalesce')
     bridge = ROSQmlBridge(node)
     sonar_bridge = SonarBridge(node, SonarRenderer())
-    status_bridge = StatusBridge(node, bridge, sonar_bridge)
+    controller_bridge = ControllerBridge(node)
+    status_bridge = StatusBridge(node, bridge, sonar_bridge, controller_bridge)
 
     now = time.monotonic()
     status_bridge.record('depth', 1.0)
