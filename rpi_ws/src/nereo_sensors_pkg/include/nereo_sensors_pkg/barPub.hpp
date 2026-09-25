@@ -15,6 +15,7 @@
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
 
 #include "nereo_sensors_pkg/qos_profiles.hpp"
+#include "nereo_sensors_pkg/depth_conversion.hpp"
 #include "nereo_sensors_pkg/barometer_libs/driver_ms5837.h"
 #include "nereo_sensors_pkg/barometer_libs/driver_ms5837_basic.h"
 #include "nereo_sensors_pkg/barometer_libs/driver_ms5837_interface.h"
@@ -28,8 +29,7 @@ class PublisherBAR: public rclcpp::Node
     private:
         rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr temperature_publisher_;
         rclcpp::Publisher<sensor_msgs::msg::FluidPressure>::SharedPtr pressure_publisher_;
-        rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr depth_salt_publisher_;
-        rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr depth_fresh_publisher_;
+        rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr depth_publisher_;
         rclcpp::TimerBase::SharedPtr timer_;
         rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostic_publisher_;
         rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_reference_srv_;
@@ -41,11 +41,12 @@ class PublisherBAR: public rclcpp::Node
 
         std_msgs::msg::Float32 temperature_message = std_msgs::msg::Float32();
         sensor_msgs::msg::FluidPressure pressure_message = sensor_msgs::msg::FluidPressure();
-        std_msgs::msg::Float32 depth_salt_message = std_msgs::msg::Float32();
-        std_msgs::msg::Float32 depth_fresh_message = std_msgs::msg::Float32();
+        std_msgs::msg::Float32 depth_message = std_msgs::msg::Float32();
         diagnostic_msgs::msg::DiagnosticArray diagnostic_message = diagnostic_msgs::msg::DiagnosticArray();
 
-        float reference_pressure_pa_ = 0.0f;  // pressure at ROV startup [Pa]
+        float reference_pressure_pa_ = 0.0f;  // pressure at tare time [Pa]
+        bool has_reference_ = false;  // true once a tare has been taken
+        std::string ms5837_type_name_ = "unknown";  // PROM-detected variant
     public:
         PublisherBAR();
 };

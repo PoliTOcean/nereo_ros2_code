@@ -58,13 +58,16 @@ extern "C"{
 
 /**
  * @brief     basic example init
- * @param[in] type is the device type
+ * @param[in] expected_type is the variant the caller believes is fitted;
+ *            used only to log a mismatch notice, since ms5837_init()
+ *            already autodetects the fitted variant from the chip's own
+ *            PROM and that detected type is authoritative for compensation
  * @return    status code
  *            - 0 success
  *            - 1 init failed
  * @note      none
  */
-uint8_t ms5837_basic_init(ms5837_type_t type);
+uint8_t ms5837_basic_init(ms5837_type_t expected_type);
 
 /**
  * @brief  basic example deinit
@@ -85,6 +88,17 @@ uint8_t ms5837_basic_deinit(void);
  * @note       none
  */
 uint8_t ms5837_basic_read(float *temperature_c, float *pressure_mbar);
+
+/**
+ * @brief      basic example get the detected device type
+ * @param[out] *type points to a type buffer, set to the variant the
+ *             chip's own PROM reported at init, not the caller's guess
+ * @return     status code
+ *             - 0 success
+ *             - 1 get type failed
+ * @note       none
+ */
+uint8_t ms5837_basic_get_type(ms5837_type_t *type);
 
 /**
  * @}

@@ -352,7 +352,7 @@ class ROSQmlBridge(QObject):
         self.sub_imu = self.node.create_subscription(
             Imu, 'imu_data', self.imu_callback, PoliciesUtils.sensor_qos)
         self.sub_barometer = self.node.create_subscription(
-            Float32, 'barometer_depth_salt', self.barometer_callback, PoliciesUtils.sensor_qos)
+            Float32, 'barometer_depth', self.barometer_callback, PoliciesUtils.sensor_qos)
         self.sub_temperature = self.node.create_subscription(
             Float32, 'barometer_temperature', self.temperature_callback, PoliciesUtils.sensor_qos)
         self.sub_joystick = self.node.create_subscription(

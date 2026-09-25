@@ -23,7 +23,7 @@ class RovSimNode(Node):
 
         self._imu_pub   = self.create_publisher(Imu,           'imu_data',             10)
         self._baro_pub  = self.create_publisher(FluidPressure, 'barometer_pressure',   10)
-        self._depth_pub = self.create_publisher(Float32,       'barometer_depth_salt', 10)
+        self._depth_pub = self.create_publisher(Float32,       'barometer_depth',      10)
         self._temp_pub  = self.create_publisher(Float32,        'barometer_temperature',10)
         self._joy_pub  = self.create_publisher(Joy,           'joy',                  10)
         self._armed_pub = self.create_publisher(Bool, '/rov_armed', 10)

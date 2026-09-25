@@ -221,9 +221,8 @@ nereo_ros2_code/
 |---|---|---|---|
 | `imu_publisher` | `imu_data` | `sensor_msgs/Imu` | `gui_node`, `nereo_controller_node` |
 | `imu_publisher` | `imu_diagnostic` | `diagnostic_msgs/DiagnosticArray` | — |
-| `bar_publisher` | `barometer_pressure` | `sensor_msgs/FluidPressure` | `gui_node`, `nereo_controller_node` |
-| `bar_publisher` | `barometer_depth_salt` | `std_msgs/Float32` | `gui_node` (depth widget) |
-| `bar_publisher` | `barometer_depth_fresh` | `std_msgs/Float32` | — |
+| `bar_publisher` | `barometer_pressure` | `sensor_msgs/FluidPressure` | ROV firmware, web |
+| `bar_publisher` | `barometer_depth` | `std_msgs/Float32` | `gui_node` (depth widget), `nereo_controller_node` |
 | `bar_publisher` | `barometer_temperature` | `sensor_msgs/Temperature` | `gui_node` |
 | `bar_publisher` | `barometer_diagnostic` | `diagnostic_msgs/DiagnosticArray` | — |
 | `sonar_node` / `sonar_sim_node` | `sonar/distance` | `std_msgs/Float32` | `gui_node` |
@@ -233,7 +232,7 @@ nereo_ros2_code/
 | `joy_to_cmd_vel` | `/nereo_cmd_vel_no_fb` | `nereo_interfaces/CommandVelocity` | `nereo_controller_node` |
 | `joy_to_cmd_vel` | `/joy_control_active` | `std_msgs/Bool` | `gui_node`, web |
 | `joy_to_cmd_vel` / web | `/set_arm_mode` | `std_msgs/Bool` | ROV firmware |
-| `nereo_controller_node` | `/nereo_cmd_vel` (controller mode) | `nereo_interfaces/CommandVelocity` | `safety_node` |
+| `nereo_controller_node` | `/nereo_cmd_vel_ctrl` (controller mode) | `nereo_interfaces/CommandVelocity` | `safety_node` |
 | `nereo_controller_node` | `/controller/setpoints` | `std_msgs/Float64MultiArray` | tuner GUI |
 | `nereo_controller_node` | `/controller/errors` | `std_msgs/Float64MultiArray` | tuner GUI |
 | `nereo_controller_node` | `/controller/pid_terms` | `std_msgs/Float64MultiArray` | tuner GUI |
@@ -241,6 +240,16 @@ nereo_ros2_code/
 | `safety_node` | `/nereo_cmd_vel` (direct mode) | `nereo_interfaces/CommandVelocity` | ROV firmware |
 | ROV firmware | `/rov_armed` | `std_msgs/Bool` | `gui_node`, `joy_to_cmd_vel`, web |
 | ROV firmware | `/thruster_status` | `nereo_interfaces/ThrusterStatuses` | — |
+
+### `bar_publisher` parameters
+
+| Parameter | Range | Default | Meaning |
+|---|---|---|---|
+| `water_density` | 990–1050 kg/m³ | 1025.0 (salt) | Density used to convert pressure to depth; set to 997.0 for fresh water/pools: `ros2 param set /bar_publisher water_density 997.0` |
+| `mounting_offset_m` | -1–1 m | 0.20 | Distance from the sensor port to the ROV's reference point (bottom); the port sits 20 cm above it, so after tare at the surface `barometer_depth` reads 0.20 m |
+
+The first successful read after `bar_publisher` starts is the tare (zero) reference — start
+at the surface, or call `barometer_reset_reference` there.
 
 ### Services
 
@@ -293,14 +302,14 @@ graph LR
    IMU -.->|imu_data| GUI
    IMU -.->|imu_data| NCN
    BAR -.->|barometer_pressure| GUI
-   BAR -.->|barometer_pressure| NCN
-   BAR -.->|barometer_depth_salt| GUI
+   BAR -.->|barometer_depth| GUI
+   BAR -.->|barometer_depth| NCN
    SONAR -.->|sonar/*| GUI
    CAM -.->|RTP/UDP 5001-5003| GUI
 
    JOY -->|nereo_cmd_vel_joy| SAFETY
    JOY -->|nereo_cmd_vel_no_fb| NCN
-   NCN -->|nereo_cmd_vel| SAFETY
+   NCN -->|nereo_cmd_vel_ctrl| SAFETY
    PHONE -->|web_cmd_vel via :9090| RB
    RB --> SAFETY
    WEB -->|UI :8080| PHONE
@@ -330,7 +339,9 @@ graph LR
 - Edits `kp/ki/kd` for depth/roll/pitch/yaw
 - Manual setpoint toggles per axis
 - **Setpoint inputs in display units**: depth in **metres**, roll/pitch/yaw in **degrees**.
-  Conversion to controller units (Pa, rad) is done inside QML (density ρ = 1025 kg/m³, salt water — matches `barometer_depth_salt`). The controller-side parameters stay in their native units.
+  Depth is metres end to end — the GUI and `nereo_controller_node` agree on the unit, so no
+  conversion happens in QML. Only the angles are converted (degrees here, radians in the
+  controller).
 - Full CS controller section (kx, ki, heave/angle limits)
 - Live telemetry: `/controller/setpoints`, `/controller/errors`, `/controller/pid_terms`
 
