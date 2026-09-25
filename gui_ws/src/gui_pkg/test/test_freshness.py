@@ -503,6 +503,190 @@ def test_summary_counts_control_and_node_rows():
     assert model['summary'] == 'down'
 
 
+# ── PI group: SoC temperature and disk (Task 2, PANEL-10) ───────────────
+
+def test_soc_temperature_row_formats_and_unit():
+    now = 0.05
+    raw = {'pi_health': ({'soc_temp_c': '48.3'}, 0.0)}
+    model = freshness.build_status(raw, now)
+    row = _row(_group(model, 'PI'), 'SoC temperature')
+    assert row['text'] == '48.3'
+    assert row['unit'] == '°C'
+    assert row['badge'] == freshness.BADGE_OK
+
+
+def test_disk_used_row_formats_and_unit():
+    now = 0.05
+    raw = {'pi_health': ({'disk_used_percent': '63.2'}, 0.0)}
+    model = freshness.build_status(raw, now)
+    row = _row(_group(model, 'PI'), 'Disk used (/)')
+    assert row['text'] == '63.2'
+    assert row['unit'] == '%'
+    assert row['badge'] == freshness.BADGE_OK
+
+
+def test_soc_temperature_unavailable_value_reads_unavailable():
+    now = 0.05
+    raw = {'pi_health': (
+        {'soc_temp_c': freshness.PI_HEALTH_UNAVAILABLE_VALUE}, 0.0)}
+    model = freshness.build_status(raw, now)
+    row = _row(_group(model, 'PI'), 'SoC temperature')
+    assert row['text'] == 'unavailable'
+    assert row['unit'] == ''
+    assert row['badge'] == freshness.BADGE_NO_DATA
+
+
+# ── PI group: Throttling (Task 2) ───────────────────────────────────────
+
+def test_throttle_flags_wire_order_and_labels():
+    assert freshness.THROTTLE_FLAGS == (
+        ('under_voltage_now', 'under-voltage now'),
+        ('freq_capped_now', 'frequency capped now'),
+        ('throttled_now', 'throttled now'),
+        ('soft_temp_limit_now', 'soft temperature limit now'),
+        ('under_voltage_since_boot', 'under-voltage since boot'),
+        ('freq_capped_since_boot', 'frequency capped since boot'),
+        ('throttled_since_boot', 'throttled since boot'),
+        ('soft_temp_limit_since_boot', 'soft temperature limit since boot'),
+    )
+
+
+def _all_flags_false():
+    return {key: 'false' for key, _ in freshness.THROTTLE_FLAGS}
+
+
+def test_throttling_all_false_reads_none():
+    now = 0.05
+    raw = {'pi_health': (_all_flags_false(), 0.0)}
+    model = freshness.build_status(raw, now)
+    row = _row(_group(model, 'PI'), 'Throttling')
+    assert row['text'] == 'none'
+    assert row['unit'] == ''
+    assert row['alert'] is False
+
+
+def test_throttling_two_active_flags_join_in_wire_order():
+    now = 0.05
+    flags = _all_flags_false()
+    flags['under_voltage_now'] = 'true'
+    flags['throttled_since_boot'] = 'true'
+    raw = {'pi_health': (flags, 0.0)}
+    model = freshness.build_status(raw, now)
+    row = _row(_group(model, 'PI'), 'Throttling')
+    assert row['text'] == 'under-voltage now; throttled since boot'
+    assert row['alert'] is True
+
+
+def test_throttling_since_boot_only_carries_no_alert():
+    now = 0.05
+    flags = _all_flags_false()
+    flags['throttled_since_boot'] = 'true'
+    raw = {'pi_health': (flags, 0.0)}
+    model = freshness.build_status(raw, now)
+    row = _row(_group(model, 'PI'), 'Throttling')
+    assert row['text'] == 'throttled since boot'
+    assert row['alert'] is False
+
+
+def test_throttling_missing_flag_reads_unavailable():
+    now = 0.05
+    flags = _all_flags_false()
+    del flags['soft_temp_limit_since_boot']
+    raw = {'pi_health': (flags, 0.0)}
+    model = freshness.build_status(raw, now)
+    row = _row(_group(model, 'PI'), 'Throttling')
+    assert row['text'] == 'unavailable'
+    assert row['unit'] == ''
+    assert row['badge'] == freshness.BADGE_NO_DATA
+
+
+def test_throttling_never_received_reads_unavailable_no_data():
+    model = freshness.build_status({}, 0.0)
+    row = _row(_group(model, 'PI'), 'Throttling')
+    assert row['text'] == 'unavailable'
+    assert row['badge'] == freshness.BADGE_NO_DATA
+
+
+# ── PI group: micro-ROS agent (Task 2, D-10) ─────────────────────────────
+
+def test_agent_running_true_reads_running():
+    now = 0.05
+    raw = {'pi_health': ({'agent_running': 'true'}, 0.0)}
+    model = freshness.build_status(raw, now)
+    row = _row(_group(model, 'PI'), 'micro-ROS agent')
+    assert row['text'] == 'running'
+    assert row['alert'] is False
+
+
+def test_agent_running_false_reads_not_running_with_alert():
+    now = 0.05
+    raw = {'pi_health': ({'agent_running': 'false'}, 0.0)}
+    model = freshness.build_status(raw, now)
+    row = _row(_group(model, 'PI'), 'micro-ROS agent')
+    assert row['text'] == 'not running'
+    assert row['alert'] is True
+
+
+def test_agent_running_missing_key_reads_unavailable():
+    now = 0.05
+    raw = {'pi_health': ({}, 0.0)}
+    model = freshness.build_status(raw, now)
+    row = _row(_group(model, 'PI'), 'micro-ROS agent')
+    assert row['text'] == 'unavailable'
+    assert row['badge'] == freshness.BADGE_NO_DATA
+
+
+# ── link_down_cause (Task 2, D-10) ───────────────────────────────────────
+
+def test_link_down_cause_agent_not_running():
+    cause = freshness.link_down_cause(
+        freshness.BADGE_OK, {'agent_running': 'false'})
+    assert cause == freshness.CAUSE_AGENT_DOWN
+
+
+def test_link_down_cause_agent_running_firmware_silent():
+    cause = freshness.link_down_cause(
+        freshness.BADGE_OK, {'agent_running': 'true'})
+    assert cause == freshness.CAUSE_FIRMWARE_SILENT
+
+
+def test_link_down_cause_pi_health_not_ok_is_unknown():
+    cause = freshness.link_down_cause(
+        freshness.BADGE_STALE, {'agent_running': 'true'})
+    assert cause == freshness.CAUSE_UNKNOWN
+
+
+def test_link_down_cause_missing_agent_key_is_unknown():
+    cause = freshness.link_down_cause(freshness.BADGE_OK, {})
+    assert cause == freshness.CAUSE_UNKNOWN
+
+
+def test_link_down_cause_no_health_at_all_is_unknown():
+    assert freshness.link_down_cause(
+        freshness.BADGE_NO_DATA, None) == freshness.CAUSE_UNKNOWN
+
+
+def test_firmware_link_down_note_carries_cause():
+    now = 10.0
+    raw = {
+        # armed silent -- link down
+        'armed': (True, 0.0),
+        'pi_health': ({'agent_running': 'false'}, now - 0.1),
+    }
+    model = freshness.build_status(raw, now)
+    firmware = _group(model, 'FIRMWARE')
+    assert firmware['badge'] == freshness.BADGE_LINK_DOWN
+    assert firmware['note'] == freshness.CAUSE_AGENT_DOWN
+
+
+def test_firmware_link_down_note_unknown_when_pi_health_also_silent():
+    now = 10.0
+    raw = {'armed': (True, 0.0)}
+    model = freshness.build_status(raw, now)
+    firmware = _group(model, 'FIRMWARE')
+    assert firmware['note'] == freshness.CAUSE_UNKNOWN
+
+
 def test_badge_transitions_reports_depth_and_firmware_changes():
     old_model = freshness.build_status(
         {'armed': (True, 0.0), 'depth': (1.0, 0.0)}, 0.05)

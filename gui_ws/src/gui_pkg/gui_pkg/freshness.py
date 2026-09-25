@@ -310,6 +310,27 @@ def _control_rows(raw, now, node_last_seen):
 # PI_HEALTH_UNAVAILABLE) -- the wire-contract twin of this constant.
 PI_HEALTH_UNAVAILABLE_VALUE = 'unavailable'
 
+# Throttle flag keys in the exact wire-contract order (piHealthPub.cpp's
+# file header), paired with their display label. 06-04 fills these on the
+# Pi; until then a missing key reads 'unavailable' (see _pi_throttle_row).
+THROTTLE_FLAGS = (
+    ('under_voltage_now', 'under-voltage now'),
+    ('freq_capped_now', 'frequency capped now'),
+    ('throttled_now', 'throttled now'),
+    ('soft_temp_limit_now', 'soft temperature limit now'),
+    ('under_voltage_since_boot', 'under-voltage since boot'),
+    ('freq_capped_since_boot', 'frequency capped since boot'),
+    ('throttled_since_boot', 'throttled since boot'),
+    ('soft_temp_limit_since_boot', 'soft temperature limit since boot'),
+)
+
+# D-10: the FIRMWARE LINK DOWN note distinguishes "restart the agent" from
+# "check the board and serial link" using the Pi health node's own report
+# of whether the micro-ROS agent process is running.
+CAUSE_AGENT_DOWN = 'micro-ROS agent not running on the Pi'
+CAUSE_FIRMWARE_SILENT = 'agent running, firmware silent'
+CAUSE_UNKNOWN = 'cause unknown: Pi health silent'
+
 
 def _pi_numeric_text(kv, key):
     """Format one numeric pi_health KeyValue, or None if unusable.
@@ -357,14 +378,94 @@ def _pi_numeric_row(label, key, unit, kv, badge, age):
     return make_row(label, text, unit, badge, age)
 
 
+def _pi_throttle_row(kv, badge, age):
+    """Build the Throttling row from the eight throttle KeyValue flags.
+
+    Args:
+        kv: the flat pi_health dict, or None if never received.
+        badge: the pi_health message's own freshness badge.
+        age: the pi_health message's own formatted age.
+
+    Returns:
+        A row: 'none' when every flag is present and false, the '; '
+        join of active flag labels (wire order) when any are true, or
+        'unavailable' with a forced NO DATA badge when any flag is
+        missing or not the literal 'true'/'false'.
+    """
+    flags = kv or {}
+    for key, _ in THROTTLE_FLAGS:
+        if flags.get(key) not in ('true', 'false'):
+            return make_row(
+                'Throttling', 'unavailable', '', BADGE_NO_DATA, age)
+    active = [label for key, label in THROTTLE_FLAGS if flags[key] == 'true']
+    text = '; '.join(active) if active else 'none'
+    alert = any(
+        flags[key] == 'true' for key, _ in THROTTLE_FLAGS
+        if key.endswith('_now'))
+    return make_row('Throttling', text, '', badge, age, alert=alert)
+
+
+def _pi_agent_row(kv, badge, age):
+    """Build the micro-ROS agent row from the agent_running flag.
+
+    Args:
+        kv: the flat pi_health dict, or None if never received.
+        badge: the pi_health message's own freshness badge.
+        age: the pi_health message's own formatted age.
+
+    Returns:
+        A row: 'running' or 'not running' (alert) from agent_running,
+        or 'unavailable' with a forced NO DATA badge when the key is
+        missing or not the literal 'true'/'false'.
+    """
+    flags = kv or {}
+    value = flags.get('agent_running')
+    if value not in ('true', 'false'):
+        return make_row(
+            'micro-ROS agent', 'unavailable', '', BADGE_NO_DATA, age)
+    running = value == 'true'
+    text = 'running' if running else 'not running'
+    return make_row(
+        'micro-ROS agent', text, '', badge, age, alert=not running)
+
+
 def _pi_group(raw, now):
     """Build the PI group's rows (D-04, D-06, D-07, PANEL-10)."""
     kv, badge, age = _classify_field(raw, now, 'pi_health')
     rows = [
         _pi_numeric_row(
             'CPU load', 'cpu_load_percent', '%', kv, badge, age),
+        _pi_numeric_row(
+            'SoC temperature', 'soc_temp_c', '°C', kv, badge, age),
+        _pi_numeric_row(
+            'Disk used (/)', 'disk_used_percent', '%', kv, badge, age),
+        _pi_throttle_row(kv, badge, age),
+        _pi_agent_row(kv, badge, age),
     ]
     return {'name': 'PI', 'badge': '', 'note': '', 'rows': rows}
+
+
+def link_down_cause(pi_badge, health):
+    """Compute the FIRMWARE LINK DOWN note's cause (D-10).
+
+    Args:
+        pi_badge: pi_health's own freshness badge (from _classify_field).
+        health: the flat pi_health dict, or None if never received.
+
+    Returns:
+        CAUSE_UNKNOWN unless pi_badge is BADGE_OK and agent_running is
+        the literal 'true' or 'false'; otherwise the cause matching the
+        agent state -- CAUSE_AGENT_DOWN for 'false', CAUSE_FIRMWARE_SILENT
+        for 'true'.
+    """
+    if pi_badge != BADGE_OK:
+        return CAUSE_UNKNOWN
+    value = (health or {}).get('agent_running')
+    if value == 'false':
+        return CAUSE_AGENT_DOWN
+    if value == 'true':
+        return CAUSE_FIRMWARE_SILENT
+    return CAUSE_UNKNOWN
 
 
 def _ros_nodes_group(expected_nodes, node_last_seen, now):
@@ -403,10 +504,11 @@ def build_status(raw, now, expected_nodes=(), node_last_seen=None):
     armed_row, link_down = _armed_row_and_link_down(raw, now)
 
     if link_down:
+        pi_kv, pi_badge, _ = _classify_field(raw, now, 'pi_health')
         firmware_group = {
             'name': 'FIRMWARE',
             'badge': BADGE_LINK_DOWN,
-            'note': '',
+            'note': link_down_cause(pi_badge, pi_kv),
             'rows': [],
         }
     else:
