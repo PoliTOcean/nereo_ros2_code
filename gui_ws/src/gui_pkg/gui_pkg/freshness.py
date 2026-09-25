@@ -188,22 +188,26 @@ def _classify_field(raw, now, key):
         key: the field's key in raw and in THRESHOLDS_S.
 
     Returns:
-        A (value, badge, age_text) tuple. value is None when the field
-        was never received.
+        A (value, badge, age_text, received) tuple. value is None when
+        the field was never received. received is derived from
+        t_received alone (WR-02) -- it is the single source of truth
+        for "never received", independent of what value happens to be;
+        callers must branch on it, not on `value is None`, to decide
+        whether a formatted value is displayable.
     """
     value, t_received = raw.get(key, (None, None))
     stale_s, nodata_s = THRESHOLDS_S[key]
     badge = classify_freshness(t_received, now, stale_s, nodata_s)
     age = format_age(t_received, now)
-    return value, badge, age
+    return value, badge, age, t_received is not None
 
 
 def _pi_sensors_rows(raw, now):
     """Build the PI SENSORS group's rows, in fixed display order."""
     rows = []
     for key, label, unit, fmt in _PI_SENSORS_FIELDS:
-        value, badge, age = _classify_field(raw, now, key)
-        text = NO_VALUE if value is None else fmt(value)
+        value, badge, age, received = _classify_field(raw, now, key)
+        text = fmt(value) if received else NO_VALUE
         rows.append(make_row(label, text, unit, badge, age))
     return rows
 
@@ -214,7 +218,7 @@ def _armed_row_and_link_down(raw, now):
     Link down (PANEL-08, D-10) means /rov_armed has never arrived or has
     been silent past its NO DATA threshold.
     """
-    value, badge, age = _classify_field(raw, now, 'armed')
+    value, badge, age, _ = _classify_field(raw, now, 'armed')
     link_down = badge == BADGE_NO_DATA
     if link_down:
         return make_row('ROV', NO_VALUE, '', BADGE_LINK_DOWN, age), True
@@ -224,8 +228,8 @@ def _armed_row_and_link_down(raw, now):
 
 def _thruster_rows(raw, now):
     """Build the eight Thruster N rows, sharing /thruster_status's age."""
-    value, badge, age = _classify_field(raw, now, 'thrusters')
-    pwms = value if value is not None else [None] * 8
+    value, badge, age, received = _classify_field(raw, now, 'thrusters')
+    pwms = value if received else [None] * 8
     rows = []
     for i, pwm in enumerate(pwms):
         text = NO_VALUE if pwm is None else str(pwm)
@@ -353,7 +357,7 @@ def _pi_numeric_text(kv, key):
         return None
 
 
-def _pi_numeric_row(label, key, unit, kv, badge, age):
+def _pi_numeric_row(label, key, unit, kv, badge, age, received):
     """Build one PI group numeric row (CPU load, SoC temperature, disk).
 
     Args:
@@ -363,6 +367,8 @@ def _pi_numeric_row(label, key, unit, kv, badge, age):
         kv: the flat pi_health dict, or None if never received.
         badge: the pi_health message's own freshness badge.
         age: the pi_health message's own formatted age.
+        received: whether pi_health has ever been received (WR-02: the
+            freshness timestamp, not `kv is None`, decides this).
 
     Returns:
         A row: never received reads NO_VALUE with `unit` and NO DATA; a
@@ -370,7 +376,7 @@ def _pi_numeric_row(label, key, unit, kv, badge, age):
         unit and NO DATA; otherwise the formatted value with `unit` and
         the pi_health badge/age.
     """
-    if kv is None:
+    if not received:
         return make_row(label, NO_VALUE, unit, BADGE_NO_DATA, NO_VALUE)
     text = _pi_numeric_text(kv, key)
     if text is None:
@@ -431,14 +437,15 @@ def _pi_agent_row(kv, badge, age):
 
 def _pi_group(raw, now):
     """Build the PI group's rows (D-04, D-06, D-07, PANEL-10)."""
-    kv, badge, age = _classify_field(raw, now, 'pi_health')
+    kv, badge, age, received = _classify_field(raw, now, 'pi_health')
     rows = [
         _pi_numeric_row(
-            'CPU load', 'cpu_load_percent', '%', kv, badge, age),
+            'CPU load', 'cpu_load_percent', '%', kv, badge, age, received),
         _pi_numeric_row(
-            'SoC temperature', 'soc_temp_c', '°C', kv, badge, age),
+            'SoC temperature', 'soc_temp_c', '°C', kv, badge, age, received),
         _pi_numeric_row(
-            'Disk used (/)', 'disk_used_percent', '%', kv, badge, age),
+            'Disk used (/)', 'disk_used_percent', '%', kv, badge, age,
+            received),
         _pi_throttle_row(kv, badge, age),
         _pi_agent_row(kv, badge, age),
     ]
@@ -504,7 +511,7 @@ def build_status(raw, now, expected_nodes=(), node_last_seen=None):
     armed_row, link_down = _armed_row_and_link_down(raw, now)
 
     if link_down:
-        pi_kv, pi_badge, _ = _classify_field(raw, now, 'pi_health')
+        pi_kv, pi_badge, _, _ = _classify_field(raw, now, 'pi_health')
         firmware_group = {
             'name': 'FIRMWARE',
             'badge': BADGE_LINK_DOWN,

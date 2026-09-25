@@ -67,6 +67,40 @@ def test_unrounded_age_drives_badge_not_the_display_string():
     assert display == '0.9 s'
 
 
+# ── WR-02: "received" comes from t_received, not `value is None` ────────
+# StatusBridge.record() always pairs a non-None value with a timestamp
+# today, so these two signals normally agree. These tests decouple them
+# directly (a value present but t_received None) to prove the row
+# builders trust the timestamp, not the value, for "never received".
+
+def test_decoupled_value_with_no_timestamp_reads_no_value_not_stale_text():
+    now = 0.05
+    raw = {'depth': (1.234, None)}
+    model = freshness.build_status(raw, now)
+    depth_row = _row(_group(model, 'PI SENSORS'), 'Depth')
+    assert depth_row['text'] == freshness.NO_VALUE
+    assert depth_row['badge'] == freshness.BADGE_NO_DATA
+
+
+def test_decoupled_thrusters_with_no_timestamp_read_no_value():
+    now = 0.05
+    raw = {'armed': (True, 0.0), 'thrusters': ([1500] * 8, None)}
+    model = freshness.build_status(raw, now)
+    firmware = _group(model, 'FIRMWARE')
+    for row in firmware['rows']:
+        assert row['text'] == freshness.NO_VALUE
+        assert row['badge'] == freshness.BADGE_NO_DATA
+
+
+def test_decoupled_pi_health_with_no_timestamp_reads_no_value():
+    now = 0.05
+    raw = {'pi_health': ({'cpu_load_percent': '42.0'}, None)}
+    model = freshness.build_status(raw, now)
+    row = _row(_group(model, 'PI'), 'CPU load')
+    assert row['text'] == freshness.NO_VALUE
+    assert row['badge'] == freshness.BADGE_NO_DATA
+
+
 # ── build_status ──────────────────────────────────────────────────────
 
 def _group(model, name):
