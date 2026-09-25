@@ -14,7 +14,21 @@ Rectangle {
     // PANEL-13). This component never derives it from badge strings or
     // a clock; it only renders the level it is handed.
     property string statusSummary: "down"
+    // WR-01: the ⛓ and 👮🏻 icons below used to watch rovConnected /
+    // controlActive directly (different clock, and no timeout at all
+    // for controlActive) -- now their border color comes from the same
+    // freshness badges the status pill and Control Panel already use,
+    // via vehicleStatus (pre-computed in gui_node, PANEL-13: no clock,
+    // no arithmetic here).
+    property var vehicleStatus: ({
+        "armed": {"badge": "NO DATA"},
+        "control": []
+    })
     signal statusClicked()
+
+    function badgeIsLive(badge) {
+        return badge === "OK" || badge === "STALE"
+    }
 
     height: 70
     color: "#12141a"
@@ -78,7 +92,8 @@ Rectangle {
                 height: 40
                 radius: 20
                 color: "#1a1a1a"
-                border.color: root.rovConnected ? "#00b7ff" : "#ff3333"
+                border.color: root.badgeIsLive(root.vehicleStatus.armed.badge)
+                              ? "#00b7ff" : "#ff3333"
                 border.width: 2
                 Text { text: "⛓"; color: parent.border.color; font.pixelSize: 18; font.bold: true; anchors.centerIn: parent }
                 ToolTip.visible: rovConnMouseArea.containsMouse
@@ -117,7 +132,11 @@ Rectangle {
                 height: 40
                 radius: 20
                 color: "#1a1a1a"
-                border.color: root.controlActive ? "#00b7ff" : "#ff3333"
+                border.color: root.badgeIsLive(
+                                  root.vehicleStatus.control.length > 0
+                                  ? root.vehicleStatus.control[0].badge
+                                  : "NO DATA")
+                              ? "#00b7ff" : "#ff3333"
                 border.width: 2
                 Text { text: "👮🏻"; color: parent.border.color; font.pixelSize: 18; font.bold: true; anchors.centerIn: parent }
                 ToolTip.visible: ctrlMouseArea.containsMouse

@@ -82,6 +82,7 @@ ApplicationWindow {
         rovArmed: window.rovArmed
         controlActive: window.controlActive
         statusSummary: StatusBridge.vehicleStatus.summary
+        vehicleStatus: StatusBridge.vehicleStatus
         onStatusClicked: controlPanelWindow.visible = true
     }
 

@@ -267,6 +267,20 @@ def test_header_bar_loads():
         obj.setProperty('statusSummary', level)
         QCoreApplication.processEvents()
 
+    # WR-01: the ⛓/👮🏻 icons now read vehicleStatus.armed.badge and
+    # vehicleStatus.control[0].badge -- exercise both a link-down (no
+    # control rows) and a live (populated control row) shape to catch
+    # binding errors on either path.
+    obj.setProperty('vehicleStatus', freshness.build_status({}, 0.0))
+    QCoreApplication.processEvents()
+
+    now = time.monotonic()
+    live = freshness.build_status(
+        {'armed': (True, now - 0.1), 'control_active': (True, now - 0.1)},
+        now, node_last_seen={freshness.JOY_NODE: now})
+    obj.setProperty('vehicleStatus', live)
+    QCoreApplication.processEvents()
+
     banned = ('ReferenceError', 'TypeError', 'Unable to assign',
               'is not defined', 'Cannot read property')
     for message in messages:
