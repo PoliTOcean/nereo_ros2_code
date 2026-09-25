@@ -340,6 +340,47 @@ def test_every_badge_in_model_is_one_of_the_four_literals():
 
 # ── badge_transitions (Task 2) ───────────────────────────────────────────
 
+# ── summary_level (header indicator, Task 1) ────────────────────────────
+
+def test_summary_level_all_ok_is_ok():
+    status = {
+        'armed': {'badge': freshness.BADGE_OK},
+        'groups': [{'badge': '', 'rows': [{'badge': freshness.BADGE_OK}]}],
+    }
+    assert freshness.summary_level(status) == 'ok'
+
+
+def test_summary_level_one_stale_row_is_stale():
+    status = {
+        'armed': {'badge': freshness.BADGE_OK},
+        'groups': [{'badge': '',
+                     'rows': [{'badge': freshness.BADGE_STALE}]}],
+    }
+    assert freshness.summary_level(status) == 'stale'
+
+
+def test_summary_level_no_data_row_is_down():
+    status = {
+        'armed': {'badge': freshness.BADGE_OK},
+        'groups': [{'badge': '',
+                     'rows': [{'badge': freshness.BADGE_NO_DATA}]}],
+    }
+    assert freshness.summary_level(status) == 'down'
+
+
+def test_summary_level_link_down_group_is_down():
+    status = {
+        'armed': {'badge': freshness.BADGE_OK},
+        'groups': [{'badge': freshness.BADGE_LINK_DOWN, 'rows': []}],
+    }
+    assert freshness.summary_level(status) == 'down'
+
+
+def test_build_status_empty_raw_summary_is_down():
+    model = freshness.build_status({}, 0.0)
+    assert model['summary'] == 'down'
+
+
 def test_badge_transitions_reports_depth_and_firmware_changes():
     old_model = freshness.build_status(
         {'armed': (True, 0.0), 'depth': (1.0, 0.0)}, 0.05)

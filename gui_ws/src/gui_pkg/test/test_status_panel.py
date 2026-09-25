@@ -159,3 +159,32 @@ def test_control_panel_loads():
     for message in messages:
         for token in banned:
             assert token not in message, message
+
+
+def test_header_bar_loads():
+    messages = []
+    qInstallMessageHandler(
+        lambda mode, ctx, msg: messages.append(msg))
+
+    engine = QQmlEngine()
+    qml_path = (Path(__file__).parent
+                / '..' / 'gui_pkg' / 'qml' / 'components'
+                / 'HeaderBar.qml').resolve()
+    component = QQmlComponent(engine, QUrl.fromLocalFile(str(qml_path)))
+
+    obj = component.create()
+    QCoreApplication.processEvents()
+
+    assert component.errors() == [], [e.toString() for e in
+                                       component.errors()]
+    assert obj is not None
+
+    for level in ('ok', 'stale', 'down'):
+        obj.setProperty('statusSummary', level)
+        QCoreApplication.processEvents()
+
+    banned = ('ReferenceError', 'TypeError', 'Unable to assign',
+              'is not defined', 'Cannot read property')
+    for message in messages:
+        for token in banned:
+            assert token not in message, message

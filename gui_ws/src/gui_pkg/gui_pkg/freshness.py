@@ -238,7 +238,42 @@ def build_status(raw, now):
         'rows': _pi_sensors_rows(raw, now),
     }
 
-    return {'armed': armed_row, 'groups': [firmware_group, pi_sensors_group]}
+    status = {
+        'armed': armed_row,
+        'groups': [firmware_group, pi_sensors_group],
+    }
+    status['summary'] = summary_level(status)
+    return status
+
+
+def summary_level(status):
+    """Compute the header indicator's overall level from a status model.
+
+    Collects the armed row's badge, every control row's badge (D-12,
+    absent before Task 2 adds status['control']), and every group's own
+    badge plus its rows' badges. QML never derives this itself (PANEL-13)
+    -- it only renders the level this function computed.
+
+    Args:
+        status: a build_status return value (or a plain dict carrying
+            the same 'armed'/'control'/'groups' shape, for tests).
+
+    Returns:
+        'down' if any collected badge is NO DATA or LINK DOWN, 'stale'
+        if any is STALE, 'ok' otherwise.
+    """
+    badges = [status['armed']['badge']]
+    badges += [row['badge'] for row in status.get('control', [])]
+    for group in status.get('groups', []):
+        if group['badge']:
+            badges.append(group['badge'])
+        badges += [row['badge'] for row in group.get('rows', [])]
+
+    if any(b in (BADGE_NO_DATA, BADGE_LINK_DOWN) for b in badges):
+        return 'down'
+    if any(b == BADGE_STALE for b in badges):
+        return 'stale'
+    return 'ok'
 
 
 def badge_transitions(old, new):
