@@ -15,9 +15,10 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 import pytest
 import rclpy
+from rclpy.duration import Duration
 from rclpy.node import Node
 from sensor_msgs.msg import Imu
-from std_msgs.msg import Float32
+from std_msgs.msg import Bool, Float32
 
 from PyQt6.QtCore import QCoreApplication, QUrl, qInstallMessageHandler
 from PyQt6.QtGui import QGuiApplication
@@ -88,6 +89,32 @@ def test_depth_roundtrip(rclpy_context):
     finally:
         status_node.destroy_node()
         pub_node.destroy_node()
+
+
+def test_rov_timeout_resets_armed(rclpy_context):
+    """CR-01: a firmware link timeout must reset the armed state, not
+    just the connected flag -- otherwise rovArmed (and the ARM/DISARM
+    button label it drives) keeps showing the last-received value as if
+    it were current once /rov_armed has gone silent."""
+    node = Node('status_test_rov_timeout')
+    bridge = ROSQmlBridge(node)
+
+    msg = Bool()
+    msg.data = True
+    bridge.rov_armed_callback(msg)
+    assert bridge.rovArmed is True
+    assert bridge.rovConnected is True
+
+    # Simulate 1.5s+ of silence on /rov_armed without a real sleep.
+    bridge.last_rov_armed_time = (
+        node.get_clock().now() - Duration(seconds=2.0))
+    bridge.check_rov_timeout()
+
+    try:
+        assert bridge.rovConnected is False
+        assert bridge.rovArmed is False
+    finally:
+        node.destroy_node()
 
 
 def test_pi_health_live(rclpy_context):

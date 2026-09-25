@@ -139,13 +139,22 @@ Window {
             }
 
             Button {
+                objectName: "armDisarmButton"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 42
+                // CR-01: the armed state this button labels/toggles is
+                // only trustworthy while the freshness system says so --
+                // never derive enabled from a clock here (PANEL-13); it
+                // only renders the badge gui_node/freshness already
+                // computed.
+                enabled: root.vehicleStatus.armed.badge !== "LINK DOWN"
+                         && root.vehicleStatus.armed.badge !== "NO DATA"
                 text: root.rovArmed ? "DISARM" : "ARM"
                 font.pixelSize: 14
                 font.bold: true
                 onClicked: root.armRequested(!root.rovArmed)
                 background: Rectangle {
+                    opacity: parent.enabled ? 1.0 : 0.4
                     color: parent.down ? "#1f4b6e" : "#255a82"
                     border.color: "#7bb8e3"
                     radius: 4

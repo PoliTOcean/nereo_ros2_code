@@ -443,6 +443,14 @@ class ROSQmlBridge(QObject):
             if self._rov_connected:
                 self._rov_connected = False
                 self.rov_connected_changed.emit(False)
+            # CR-01: the last-known armed state must not survive a link
+            # timeout -- otherwise the ARM/DISARM button keeps showing a
+            # confident label for a vehicle whose true state is now
+            # unknown. Runs on the Qt thread (QTimer.timeout), so a
+            # direct emit is safe, same as rov_connected_changed above.
+            if self._rov_armed:
+                self._rov_armed = False
+                self.rov_armed_changed.emit(False)
 
     def rov_armed_callback(self, msg: Bool):
         self.rov_armed_received.emit(msg.data)
