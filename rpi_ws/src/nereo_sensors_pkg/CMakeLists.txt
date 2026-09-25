@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.8)
 project(nereo_sensors_pkg)
 
+# WR-03: piHealthPub.cpp uses std::filesystem (C++17). Pin the standard
+# explicitly rather than relying on whatever gnu++NN the compiler on
+# $PATH defaults to -- the build only worked by accident on GCC 11
+# (workstation) and GCC 13 (Pi, noble).
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
