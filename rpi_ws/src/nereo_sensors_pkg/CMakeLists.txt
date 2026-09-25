@@ -20,6 +20,7 @@ find_package(geometry_msgs REQUIRED)
 
 add_executable(imu_pub src/imuPub.cpp)
 add_executable(barometer_pub src/barPub.cpp)
+add_executable(pi_health_pub src/piHealthPub.cpp)
 
 # barometer libs
 add_library(bar_iic 
@@ -88,10 +89,15 @@ ament_target_dependencies(barometer_pub
 	diagnostic_msgs
 	std_srvs
 )
+ament_target_dependencies(pi_health_pub
+	rclcpp
+	diagnostic_msgs
+)
 
 install(TARGETS
   imu_pub
   barometer_pub
+  pi_health_pub
   DESTINATION lib/${PROJECT_NAME}
 )
 

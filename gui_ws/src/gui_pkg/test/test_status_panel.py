@@ -7,6 +7,7 @@ catch binding errors QML would otherwise hide silently.
 Author: Davide Colabella
 """
 import os
+import subprocess
 import time
 from pathlib import Path
 
@@ -87,6 +88,58 @@ def test_depth_roundtrip(rclpy_context):
     finally:
         status_node.destroy_node()
         pub_node.destroy_node()
+
+
+def test_pi_health_live(rclpy_context):
+    """Run the real pi_health_pub binary into the real StatusBridge.
+
+    Skipped when PI_HEALTH_PUB is unset -- a skip here means the node's
+    real output never reached the GUI model, which is exactly what
+    T-06-12 (contract drift between piHealthPub.cpp's KeyValue keys and
+    freshness.py's PI rows) exists to catch.
+    """
+    pi_health_pub = os.environ.get('PI_HEALTH_PUB')
+    if not pi_health_pub:
+        pytest.skip('PI_HEALTH_PUB not set: no built pi_health_pub binary')
+
+    status_node = Node('status_test_pi_health')
+    bridge = ROSQmlBridge(status_node)
+    sonar_bridge = SonarBridge(status_node, SonarRenderer())
+    controller_bridge = ControllerBridge(status_node)
+    status_bridge = StatusBridge(
+        status_node, bridge, sonar_bridge, controller_bridge)
+
+    proc = subprocess.Popen([pi_health_pub])
+    try:
+        deadline = time.monotonic() + 10.0
+        cpu_row = None
+        while time.monotonic() < deadline:
+            rclpy.spin_once(status_node, timeout_sec=0.1)
+            status_bridge.refresh()
+
+            model = status_bridge.vehicleStatus
+            pi_group = _group(model, 'PI')
+            cpu_row = next(
+                r for r in pi_group['rows'] if r['label'] == 'CPU load')
+            if cpu_row['badge'] == freshness.BADGE_OK:
+                try:
+                    float(cpu_row['text'])
+                    break
+                except ValueError:
+                    pass
+
+        assert cpu_row is not None
+        assert cpu_row['badge'] == freshness.BADGE_OK
+        float(cpu_row['text'])  # a real number, not the raw text
+        assert cpu_row['unit'] == '%'
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5.0)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        status_node.destroy_node()
 
 
 def test_refresh_emits_once(rclpy_context):

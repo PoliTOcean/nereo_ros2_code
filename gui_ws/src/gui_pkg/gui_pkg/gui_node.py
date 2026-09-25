@@ -29,6 +29,7 @@ from tf_transformations import euler_from_quaternion
 from sensor_msgs.msg import Imu, Joy, FluidPressure
 from std_msgs.msg import Float32, Int32, Float32MultiArray, Bool, Float64MultiArray
 from std_srvs.srv import Trigger
+from diagnostic_msgs.msg import DiagnosticArray
 from rcl_interfaces.msg import (
     ParameterType, ParameterValue, Parameter as ParameterMsg, ParameterEvent)
 from rcl_interfaces.srv import GetParameters, SetParameters
@@ -758,6 +759,9 @@ class StatusBridge(QObject):
         self._node.create_subscription(
             FluidPressure, 'barometer_pressure',
             self._cb_pressure, PoliciesUtils.sensor_qos)
+        self._node.create_subscription(
+            DiagnosticArray, 'pi_health',
+            self._cb_pi_health, PoliciesUtils.sensor_qos)
         # Read-only: reports the controller's own parameter-set calls,
         # adds no parameter-set path of its own (PANEL-14, D-02).
         self._node.create_subscription(
@@ -793,6 +797,13 @@ class StatusBridge(QObject):
 
     def _cb_pressure(self, msg: FluidPressure):
         self.record('pressure', msg.fluid_pressure)
+
+    def _cb_pi_health(self, msg: DiagnosticArray):
+        kv = {}
+        for status in msg.status:
+            for item in status.values:
+                kv[item.key] = item.value
+        self.record('pi_health', kv)
 
     def _on_params_loaded(self, params):
         if 'control_mode' in params:

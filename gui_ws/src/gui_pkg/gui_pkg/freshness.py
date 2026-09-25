@@ -28,6 +28,9 @@ THRESHOLDS_S = {
     'water_temp': (0.9, 3.0),
     'sonar_range': (1.0, 3.0),
     'sonar_confidence': (1.0, 3.0),
+    # pi_health_pub publishes at 1 Hz, so STALE follows three missed
+    # messages (D-06/D-07).
+    'pi_health': (3.0, 6.0),
 }
 
 # (raw key, label, unit, format function) for each PI SENSORS row, in the
@@ -302,6 +305,68 @@ def _control_rows(raw, now, node_last_seen):
     return rows
 
 
+# The literal pi_health_pub writes for a key it failed to read or parse
+# (nereo_sensors_pkg/include/nereo_sensors_pkg/pi_health.hpp,
+# PI_HEALTH_UNAVAILABLE) -- the wire-contract twin of this constant.
+PI_HEALTH_UNAVAILABLE_VALUE = 'unavailable'
+
+
+def _pi_numeric_text(kv, key):
+    """Format one numeric pi_health KeyValue, or None if unusable.
+
+    Args:
+        kv: the flat {key: value} dict from the latest pi_health message,
+            or None if pi_health has never been received.
+        key: the KeyValue key to read.
+
+    Returns:
+        A '%.1f'-formatted string, or None when the key is missing, the
+        unavailable literal, or not parseable as a float.
+    """
+    raw_value = (kv or {}).get(key)
+    if raw_value is None or raw_value == PI_HEALTH_UNAVAILABLE_VALUE:
+        return None
+    try:
+        return f'{float(raw_value):.1f}'
+    except (TypeError, ValueError):
+        return None
+
+
+def _pi_numeric_row(label, key, unit, kv, badge, age):
+    """Build one PI group numeric row (CPU load, SoC temperature, disk).
+
+    Args:
+        label: row label.
+        key: the pi_health KeyValue key backing this row.
+        unit: unit label used only when a value is shown.
+        kv: the flat pi_health dict, or None if never received.
+        badge: the pi_health message's own freshness badge.
+        age: the pi_health message's own formatted age.
+
+    Returns:
+        A row: never received reads NO_VALUE with `unit` and NO DATA; a
+        missing/unavailable/non-numeric key reads 'unavailable' with no
+        unit and NO DATA; otherwise the formatted value with `unit` and
+        the pi_health badge/age.
+    """
+    if kv is None:
+        return make_row(label, NO_VALUE, unit, BADGE_NO_DATA, NO_VALUE)
+    text = _pi_numeric_text(kv, key)
+    if text is None:
+        return make_row(label, 'unavailable', '', BADGE_NO_DATA, age)
+    return make_row(label, text, unit, badge, age)
+
+
+def _pi_group(raw, now):
+    """Build the PI group's rows (D-04, D-06, D-07, PANEL-10)."""
+    kv, badge, age = _classify_field(raw, now, 'pi_health')
+    rows = [
+        _pi_numeric_row(
+            'CPU load', 'cpu_load_percent', '%', kv, badge, age),
+    ]
+    return {'name': 'PI', 'badge': '', 'note': '', 'rows': rows}
+
+
 def _ros_nodes_group(expected_nodes, node_last_seen, now):
     """Build the ROS NODES group, in expected_nodes order (PANEL-09)."""
     rows = []
@@ -359,12 +424,15 @@ def build_status(raw, now, expected_nodes=(), node_last_seen=None):
         'rows': _pi_sensors_rows(raw, now),
     }
 
+    pi_group = _pi_group(raw, now)
     ros_nodes_group = _ros_nodes_group(expected_nodes, node_last_seen, now)
 
     status = {
         'armed': armed_row,
         'control': _control_rows(raw, now, node_last_seen),
-        'groups': [firmware_group, pi_sensors_group, ros_nodes_group],
+        'groups': [
+            firmware_group, pi_sensors_group, pi_group, ros_nodes_group,
+        ],
     }
     status['summary'] = summary_level(status)
     return status
