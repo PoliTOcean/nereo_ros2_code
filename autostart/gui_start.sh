@@ -2,104 +2,102 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WS_DIR="$SCRIPT_DIR/../gui_ws"
-VENV_DIR="$SCRIPT_DIR/venv"
+ROS_SETUP="${ROS_SETUP:-/opt/ros/${ROS_DISTRO:-jazzy}/setup.bash}"
+CONTROLLER_WS_DIR="${CONTROLLER_WS_DIR:-$SCRIPT_DIR/../../ros2_controller_tuning_aid}"
+export CONTROLLER_OVERLAY="$CONTROLLER_WS_DIR/install"
 
-echo
+# Discovery via IP esplicito: il multicast in ingresso non passa su WSL.
+export ROS_DOMAIN_ID=0
+export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+export ROS_STATIC_PEERS="10.0.0.3"
 
-
-check_command() {
-    command -v "$1" >/dev/null 2>&1
+fail() {
+    echo "ERRORE: $*" >&2
+    exit 1
 }
 
-ensure_python_tools() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        sudo apt update && sudo apt install -y python3
-    fi
-    if ! python3 -m venv --help >/dev/null 2>&1; then
-        sudo apt update && sudo apt install -y python3-venv
-    fi
-    if ! command -v pip3 >/dev/null 2>&1; then
-        sudo apt update && sudo apt install -y python3-pip
-    fi
+source_setup() {
+    [[ -r "$1" ]] || fail "File di setup mancante: $1. Prepara il workspace manualmente."
+    # I setup generati da ROS/colcon possono leggere variabili non definite.
+    set +u
+    source "$1"
+    set -u
+}
+
+check_dependencies() {
+    local cmd pkg
+    for cmd in /usr/bin/python3 colcon tmux; do
+        command -v "$cmd" >/dev/null 2>&1 || fail "Comando mancante: $cmd. Installalo manualmente."
+    done
+    source_setup "$ROS_SETUP"
+    source_setup "$CONTROLLER_OVERLAY/local_setup.bash"
+    command -v ros2 >/dev/null 2>&1 || fail "ros2 non disponibile dopo il sourcing di $ROS_SETUP."
+    for pkg in nereo_controller_node joy rosbridge_server; do
+        ros2 pkg prefix "$pkg" >/dev/null 2>&1 || fail "Package ROS mancante: $pkg. Installalo o compilalo manualmente."
+    done
+    # Gli entry point colcon della GUI usano Python di sistema.
+    /usr/bin/python3 - <<'PY'
+import importlib
+import sys
+modules = ('rclpy', 'PyQt6.QtCore', 'PyQt6.QtGui', 'PyQt6.QtQml',
+           'PyQt6.QtQuick', 'numpy', 'matplotlib', 'qrcode', 'gi',
+           'tf_transformations')
+missing = []
+for module in modules:
+    try:
+        importlib.import_module(module)
+    except (ImportError, OSError) as exc:
+        missing.append(f'{module}: {exc}')
+try:
+    import gi
+    gi.require_version('Gst', '1.0')
+    from gi.repository import Gst
+except (ImportError, ValueError, OSError) as exc:
+    missing.append(f'GStreamer: {exc}')
+if missing:
+    print('ERRORE: dipendenze Python mancanti o non utilizzabili; preparale manualmente:\n'
+          + '\n'.join(missing), file=sys.stderr)
+    sys.exit(1)
+PY
+    [[ -d "$WS_DIR/src" ]] || fail "Workspace GUI mancante: $WS_DIR/src."
 }
 
 main() {
-    if ! check_command ros2; then
-        echo "ROS2 not found."
+    check_dependencies
+    if [[ "${1:-}" == "--check" ]]; then
+        echo "Controlli dipendenze completati. Nessuna installazione eseguita."
+        return
     fi
 
-    # Source ROS2
-    set +u
-    source /opt/ros/jazzy/setup.bash
-    set -u
-
-    ensure_python_tools
-
-    # Build workspace con Python di sistema
+    # Non ereditare un eventuale virtualenv durante la build.
+    if declare -F deactivate >/dev/null; then
+        deactivate
+    elif [[ -n "${VIRTUAL_ENV:-}" ]]; then
+        PATH="${PATH#"$VIRTUAL_ENV/bin:"}"
+        unset VIRTUAL_ENV
+        export PATH
+    fi
     echo "Building gui_ws with system Python..."
     cd "$WS_DIR"
-    colcon build --symlink-install
+    colcon build --symlink-install --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
+    source_setup "$WS_DIR/install/local_setup.bash"
+    local pkg
+    for pkg in gui_pkg joystick_pkg web_pkg nereo_interfaces; do
+        ros2 pkg prefix "$pkg" >/dev/null 2>&1 || fail "Package GUI mancante dopo la build: $pkg."
+    done
 
-    # DOPO i build, crea il venv per runtime
-    if [[ ! -d "$VENV_DIR" ]]; then
-        echo "Creating virtual environment for runtime..."
-        python3 -m venv "$VENV_DIR" --system-site-packages
-        touch "$VENV_DIR/COLCON_IGNORE"
+    local session="rosgui" pane_cmd
+    if tmux has-session -t "$session" 2>/dev/null; then
+        tmux kill-session -t "$session"
     fi
-
-    # Attiva venv e installa solo PyQt6 (le altre dipendenze vengono da system-site-packages)
-    source "$VENV_DIR/bin/activate"
-    echo "Installing PyQt6 in venv..."
-    pip install --upgrade pip
-    pip install PyQt6
-    
-    echo "✓ Setup complete, starting tmux session..."
-
-    ### --------- TMUX PART --------- ###
-    # Check tmux
-    if ! command -v tmux >/dev/null 2>&1; then
-        echo "tmux not installed — installing..."
-        sudo apt update && sudo apt install -y tmux
-    fi
-
-    # Nome sessione
-    SESSION="rosgui"
-
-    # Se esiste, kill e ricrea (gestisci l'exit code senza far fallire lo script)
-    if tmux has-session -t $SESSION 2>/dev/null; then
-        echo "Killing existing tmux session '$SESSION'..."
-        tmux kill-session -t $SESSION
-    fi
-
-    echo "DEBUG: Creating tmux session '$SESSION'..."
-    echo "DEBUG: VENV_DIR=$VENV_DIR"
-    echo "DEBUG: WS_DIR=$WS_DIR"
-    echo "DEBUG: SCRIPT_DIR=$SCRIPT_DIR"
-    
-    # Disabilita set -e temporaneamente per i comandi tmux
-    set +e
-    
-    # Crea la sessione con il primo pannello (usa i valori espansi direttamente)
-    tmux -f /dev/null new-session -d -s $SESSION -n gui bash -c "
-        source '$VENV_DIR/bin/activate' && \
-        source /opt/ros/jazzy/setup.bash && \
-        source '$WS_DIR/install/setup.bash' && \
-        ros2 run gui_pkg workstation.launch.py; \
-        exec bash
-    "
-    
-    TMUX_EXIT_CODE=$?
-    if [ $TMUX_EXIT_CODE -ne 0 ]; then
-        echo "ERROR: Failed to create tmux session (exit code: $TMUX_EXIT_CODE)"
-        exit 1
-    fi
-
-    # Riabilita set -e
-    set -e
-
-    # Attacca la sessione
-    echo "Starting ROS2 GUI in tmux session '$SESSION'..."
-    tmux attach -t $SESSION
+    # Passa i percorsi con quoting shell e ricarica gli overlay nel pannello.
+    # Imposta la rete anche nel pannello: un server tmux già attivo può avere
+    # un ambiente diverso da quello dello script.
+    printf -v pane_cmd 'bash -c %q' "$(printf 'export CONTROLLER_OVERLAY=%q; source %q && source %q && source %q && export ROS_DOMAIN_ID=0 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST ROS_STATIC_PEERS=10.0.0.3 && ros2 launch gui_pkg workstation.launch.py; exec bash' \
+        "$CONTROLLER_OVERLAY" "$ROS_SETUP" "$CONTROLLER_OVERLAY/local_setup.bash" "$WS_DIR/install/local_setup.bash")"
+    tmux -f /dev/null new-session -d -s "$session" -n gui "$pane_cmd"
+    echo "Starting ROS2 GUI in tmux session '$session'..."
+    tmux attach -t "$session"
 }
 
 main "$@"

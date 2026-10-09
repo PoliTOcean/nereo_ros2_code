@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ---------- 1. INSTALL EXPECT SE NON PRESENTE ----------
+# ---------- CONTROLLO DIPENDENZE: nessuna installazione automatica ----------
 if ! command -v expect >/dev/null 2>&1; then
-    echo "[*] Expect non trovato. Installazione in corso..."
-    sudo apt update && sudo apt install -y expect
+    echo "ERRORE: expect non trovato. Installalo manualmente." >&2
+    exit 1
 fi
 
 HOST="10.0.0.3"
@@ -12,7 +12,8 @@ USER="pi"
 PASS="raspberry"
 SESSION="nereo_session"
 
-# =============== OCCHIO: cambiato per l'altra rasp, deve essere 'set host "10.0.0.3"', 'set pass "raspberry"'
+# =============== OCCHIO: cambiato per l'altra rasp, deve essere 'set host "10.0.0.3"', 'set pass $env(NEREO_SSH_PASSWORD)'
+export NEREO_SSH_PASSWORD="${NEREO_SSH_PASSWORD:-raspberry}"
 expect <(cat <<'EOF'
 set timeout 30
 set host "10.0.0.3"
@@ -20,22 +21,23 @@ set user "pi"
 set pass "raspberry"
 set session "nereo_session"
 
+# Configurazione remota esplicita in ogni pannello, anche con tmux già attivo.
+set ros_network "export ROS_DOMAIN_ID=0 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST ROS_STATIC_PEERS=10.0.0.69"
+
 # ----- SSH -----
-spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $user@$host
+spawn ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 $user@$host
 
-# Gestione primo accesso + password
+# SSH memorizza le nuove chiavi host e rifiuta quelle cambiate.
+# Attende il prompt anche quando l'accesso usa una chiave, senza password.
 expect {
-    "yes/no" { 
-        send "yes\r"
-        exp_continue 
+    "password:" {
+        send "$pass\r"
+        exp_continue
     }
-    "password:" { 
-        send "$pass\r" 
-    }
+    -re "pi@.*:.*\\$ " { }
+    timeout { puts stderr "ERRORE: timeout connessione SSH"; exit 1 }
+    eof { puts stderr "ERRORE: connessione SSH fallita; controlla anche il fingerprint"; exit 1 }
 }
-
-# ----- ATTENDERE IL PROMPT -----
-expect -re "pi@.*:.*\\$ "
 
 # ----- CONTROLLO FILE REMOTI -----
 # Entra nella repo e controlla che gli script esistano e siano eseguibili
@@ -57,7 +59,7 @@ sleep 0.3
 # Avvia lo script dentro tmux (senza piping della password), poi simula la
 # digitazione della password con `tmux send-keys` in modo che programmi che
 # leggono la password da /dev/tty (es. sudo, prompt interattivi) la ricevano.
-send "tmux -f /dev/null new-session -d -s $session -n micro_ros bash -c 'cd ~/nereo_ros2_code/autostart && ./micro_ros_connect.sh; exec bash'\r"
+send "tmux -f /dev/null new-session -d -s $session -n micro_ros bash -c '$ros_network && cd ~/nereo_ros2_code/autostart && ./micro_ros_connect.sh; exec bash'\r"
 # lascia un breve intervallo perché tmux abbia avviato il processo e il prompt
 sleep 1
 # invia la password come tasti alla pane (simula l'input utente), seguito da Invio
@@ -67,12 +69,12 @@ sleep 2
 expect -re "pi@.*:.*\\$ "
 
 # Split orizzontale nella stessa finestra - usa il nome della finestra
-send "tmux split-window -h -t $session:micro_ros bash -c 'source /opt/ros/jazzy/setup.bash && source ~/nereo_ros2_code/rpi_ws/install/setup.bash && cd ~/nereo_ros2_code/autostart && ./start_imu_bar.sh; exec bash'\r"
+send "tmux split-window -h -t $session:micro_ros bash -c 'source /opt/ros/jazzy/setup.bash && source ~/nereo_ros2_code/rpi_ws/install/setup.bash && $ros_network && cd ~/nereo_ros2_code/autostart && ./start_imu_bar.sh; exec bash'\r"
 sleep 2
 expect -re "pi@.*:.*\\$ "
 
 # Secondo split - sonar
-send "tmux split-window -v -t $session:micro_ros bash -c 'source /opt/ros/jazzy/setup.bash && source ~/nereo_ros2_code/rpi_ws/install/setup.bash && ros2 run sonar_pkg sonar_node; exec bash'\r"
+send "tmux split-window -v -t $session:micro_ros bash -c 'source /opt/ros/jazzy/setup.bash && source ~/nereo_ros2_code/rpi_ws/install/setup.bash && $ros_network && ros2 run sonar_pkg sonar_node; exec bash'\r"
 sleep 2
 expect -re "pi@.*:.*\\$ "
 

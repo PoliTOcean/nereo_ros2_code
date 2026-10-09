@@ -6,8 +6,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"          # percorso s
 LOG_FILE="$SCRIPT_DIR/log_autostart.txt"
 GUI_SCRIPT="$SCRIPT_DIR/gui_start.sh"
 CONNECT_SCRIPT="$SCRIPT_DIR/connect_and_run.sh"
-INSTALL_SCRIPT="$SCRIPT_DIR/install_ros.sh"
 TARGET_IP="10.0.0.3"
+
+# Memorizza le nuove chiavi host; rifiuta fingerprint cambiati.
 
 # Appende sul file di log e se non esiste lo crea
 printf "\n\n" >> "$LOG_FILE"  
@@ -26,16 +27,31 @@ stop_previous_autostart() {
     log "Stopping previous ROV processes..."
     echo "Chiusura delle sessioni sul Raspberry..."
 
-    # Richiede la password SSH se non hai configurato le chiavi.
-    # Chiude tutte le sessioni tmux dell'utente pi.
-    if ! ssh -o ConnectTimeout=10 "pi@$TARGET_IP" \
-        'if command -v tmux >/dev/null 2>&1; then
-             tmux kill-server 2>/dev/null || true
-         else
-             echo "ERROR: tmux non installato sul Raspberry." >&2
-             exit 1
-         fi'; then      # provo a connettermi per 10 secondi alla rasp e se non riesco stampo cose, se riesco killo il tmux   
-
+    # Usa la stessa password predefinita di connect_and_run.sh.
+    # NEREO_SSH_PASSWORD permette di sostituirla senza modificare gli script.
+    if ! NEREO_SSH_HOST="$TARGET_IP" NEREO_SSH_PASSWORD="${NEREO_SSH_PASSWORD:-raspberry}" expect <<'EXPECT'
+set timeout 30
+set attempts 0
+spawn ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 pi@$env(NEREO_SSH_HOST) {if command -v tmux >/dev/null 2>&1; then tmux kill-server 2>/dev/null || true; else echo "ERROR: tmux non installato sul Raspberry." >&2; exit 1; fi}
+expect {
+    -nocase "password:" {
+        if {$attempts >= 1} {
+            puts stderr "ERRORE: password SSH rifiutata."
+            exit 1
+        }
+        incr attempts
+        send -- "$env(NEREO_SSH_PASSWORD)\r"
+        exp_continue
+    }
+    timeout { puts stderr "ERRORE: timeout durante la pulizia SSH."; exit 1 }
+    eof {
+        set result [wait]
+        if {[lindex $result 2] != 0 || [llength $result] > 4} { exit 1 }
+        exit [lindex $result 3]
+    }
+}
+EXPECT
+    then
         log "ERROR: cannot complete Raspberry cleanup."
         echo "Pulizia del Raspberry fallita. Autostart interrotto."
         exit 1
@@ -84,6 +100,10 @@ log "Starting autostart script."
 
 # ---------- LOCK: una sola procedura di riavvio alla volta ----------
 LOCK_FILE="/tmp/nereo_autostart_restart.lock"
+if ! command -v flock >/dev/null 2>&1; then
+    echo "ERRORE: flock mancante. Installalo manualmente." >&2
+    exit 1
+fi
 exec 9>"$LOCK_FILE"
 
 log "Waiting for restart lock..."
@@ -96,8 +116,7 @@ fi
 
 log "Restart lock acquired."
 
-# A ogni avvio ferma i processi precedenti, poi prosegue.
-stop_previous_autostart
+# La pulizia avviene solo dopo i controlli delle dipendenze.
 
 
 # ---------- CONTROLLO FILE LOCALE: esistenza e permessi di esecuzione ----------
@@ -137,13 +156,14 @@ open_terminal() {
 
     log "Opening terminal '$title'."
 
-    if command -v xterm >/dev/null 2>&1; then
-        xterm -T "$title" -hold -e bash -lc "$cmd; exec bash" &
+    # Preferisce GNOME Terminal; usa gli altri emulatori se non disponibile.
+    if command -v gnome-terminal >/dev/null 2>&1; then
+        gnome-terminal --title="$title" -- bash -lc "$cmd; exec bash" &
         return 0
     fi
 
-    if command -v gnome-terminal >/dev/null 2>&1; then
-        gnome-terminal --title="$title" -- bash -lc "$cmd; exec bash" &
+    if command -v xterm >/dev/null 2>&1; then
+        xterm -T "$title" -hold -e bash -lc "$cmd; exec bash" &
         return 0
     fi
 
@@ -174,20 +194,26 @@ open_terminal() {
 # ---------- Controlli iniziali ----------
 check_file "$GUI_SCRIPT"
 check_file "$CONNECT_SCRIPT"
-check_file "$INSTALL_SCRIPT"
+for cmd in ssh expect flock ping pkill; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        log "ERROR: comando mancante: $cmd"
+        echo "ERRORE: comando mancante: $cmd. Installalo manualmente." >&2
+        exit 1
+    fi
+done
+if ! "$GUI_SCRIPT" --check; then
+    log "ERROR: controllo dipendenze GUI fallito."
+    exit 1
+fi
+stop_previous_autostart
 
 # ---------- Comando GUI ----------
-# crea un comando che verrà eseguito dopo (in open_terminal), e fa scrivere l'output sul file di log
-GUI_CMD="\"$GUI_SCRIPT\" >> \"$LOG_FILE\" 2>&1" 
+# Mantiene il terminale disponibile per tmux attach e per gli errori.
+printf -v GUI_CMD '%q' "$GUI_SCRIPT"
 
 # ---------- Comando connessione ----------
 # anche qui viene preparata una stringa di comando, che pinga la rasp finchè non è raggiungibile, poi esegue lo script di connessione
 CONNECT_CMD="echo Waiting for $TARGET_IP; until ping -c1 -W1 $TARGET_IP >/dev/null 2>&1; do sleep 1; done; echo $TARGET_IP reachable; exec \"$CONNECT_SCRIPT\""
-
-# ---------- Valutazione ROS installato o meno ----------
-log "Checking ROS installation..."
-"$INSTALL_SCRIPT"
-log "ROS installation check completed."
 
 # ---------- Avvio in terminali separati ----------
 log "Opening GUI terminal."
