@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.8)
 project(nereo_sensors_pkg)
 
+# WR-03: piHealthPub.cpp uses std::filesystem (C++17). Pin the standard
+# explicitly rather than relying on whatever gnu++NN the compiler on
+# $PATH defaults to -- the build only worked by accident on GCC 11
+# (workstation) and GCC 13 (Pi, noble).
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -20,6 +28,7 @@ find_package(geometry_msgs REQUIRED)
 
 add_executable(imu_pub src/imuPub.cpp)
 add_executable(barometer_pub src/barPub.cpp)
+add_executable(pi_health_pub src/piHealthPub.cpp)
 
 # barometer libs
 add_library(bar_iic 
@@ -88,10 +97,15 @@ ament_target_dependencies(barometer_pub
 	diagnostic_msgs
 	std_srvs
 )
+ament_target_dependencies(pi_health_pub
+	rclcpp
+	diagnostic_msgs
+)
 
 install(TARGETS
   imu_pub
   barometer_pub
+  pi_health_pub
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -108,6 +122,9 @@ if(BUILD_TESTING)
     )
     ament_add_gtest(test_depth_conversion
       test/test_depth_conversion.cpp
+    )
+    ament_add_gtest(test_pi_health_parsers
+      test/test_pi_health_parsers.cpp
     )
   else()
     message(STATUS

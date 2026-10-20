@@ -81,6 +81,9 @@ ApplicationWindow {
         joystickConnected: window.joystickConnected
         rovArmed: window.rovArmed
         controlActive: window.controlActive
+        statusSummary: StatusBridge.vehicleStatus.summary
+        vehicleStatus: StatusBridge.vehicleStatus
+        onStatusClicked: controlPanelWindow.visible = true
     }
 
     SonarWindow {
@@ -171,6 +174,7 @@ ApplicationWindow {
     ControlPanelWindow {
         id: controlPanelWindow
         rovArmed: window.rovArmed
+        vehicleStatus: StatusBridge.vehicleStatus
         onArmRequested: (armed) => {
             sendArmCommand(armed)
         }

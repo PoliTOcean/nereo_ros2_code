@@ -51,7 +51,7 @@ sleep 0.3
 # Avvia lo script dentro tmux (senza piping della password), poi simula la
 # digitazione della password con `tmux send-keys` in modo che programmi che
 # leggono la password da /dev/tty (es. sudo, prompt interattivi) la ricevano.
-send "tmux -f /dev/null new-session -d -s $session -n micro_ros bash -c 'cd ~; ./micro_ros_connect.sh; exec bash'\r"
+send "tmux -f /dev/null new-session -d -s $session -n micro_ros bash -c 'cd ~; ./nereo_ros2_code/SETUP_RPI/micro_ros_connect.sh; exec bash'\r"
 # lascia un breve intervallo perché tmux abbia avviato il processo e il prompt
 sleep 0.8
 # invia la password come tasti alla pane (simula l'input utente), seguito da Invio
@@ -61,7 +61,7 @@ sleep 0.5
 expect -re "pi@.*:.*\\$ "
 
 # Split orizzontale nella stessa finestra - usa il nome della finestra
-send "tmux split-window -h -t $session:micro_ros bash -c 'cd ~/nereo_ros2_code && ./start_imu_bar.sh; exec bash'\r"
+send "tmux split-window -h -t $session:micro_ros bash -c 'cd ~/nereo_ros2_code && ./SETUP_RPI/nereo_sensors_start.sh; exec bash'\r"
 expect -re "pi@.*:.*\\$ "
 
 # Attach alla sessione - rimuovi l'expect dopo perché tmux prende il controllo

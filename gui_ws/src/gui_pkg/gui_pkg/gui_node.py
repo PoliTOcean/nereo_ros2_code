@@ -1,6 +1,7 @@
 import sys
 import os
 import math
+import time
 import gi
 import rclpy
 import threading
@@ -25,12 +26,17 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from tf_transformations import euler_from_quaternion
-from sensor_msgs.msg import Imu, Joy
+from sensor_msgs.msg import Imu, Joy, FluidPressure
 from std_msgs.msg import Float32, Int32, Float32MultiArray, Bool, Float64MultiArray
 from std_srvs.srv import Trigger
-from rcl_interfaces.msg import ParameterType, ParameterValue, Parameter as ParameterMsg
+from diagnostic_msgs.msg import DiagnosticArray
+from rcl_interfaces.msg import (
+    ParameterType, ParameterValue, Parameter as ParameterMsg, ParameterEvent)
 from rcl_interfaces.srv import GetParameters, SetParameters
+from rclpy.qos import qos_profile_parameter_events
+from nereo_interfaces.msg import ThrusterStatuses
 from . import PoliciesUtils
+from . import freshness
 
 
 class CamStreamer:
@@ -327,6 +333,7 @@ class ROSQmlBridge(QObject):
     rov_armed_changed      = pyqtSignal(bool)
     rov_connected_changed  = pyqtSignal(bool)
     control_active_changed = pyqtSignal(bool)
+    rov_armed_received     = pyqtSignal(bool)
 
     def __init__(self, node: Node):
         super().__init__()
@@ -436,8 +443,17 @@ class ROSQmlBridge(QObject):
             if self._rov_connected:
                 self._rov_connected = False
                 self.rov_connected_changed.emit(False)
+            # CR-01: the last-known armed state must not survive a link
+            # timeout -- otherwise the ARM/DISARM button keeps showing a
+            # confident label for a vehicle whose true state is now
+            # unknown. Runs on the Qt thread (QTimer.timeout), so a
+            # direct emit is safe, same as rov_connected_changed above.
+            if self._rov_armed:
+                self._rov_armed = False
+                self.rov_armed_changed.emit(False)
 
     def rov_armed_callback(self, msg: Bool):
+        self.rov_armed_received.emit(msg.data)
         self.last_rov_armed_time = self.node.get_clock().now()
         if not self._rov_connected:
             self._rov_connected = True
@@ -700,6 +716,138 @@ class ControllerBridge(QObject):
         self.pid_terms_changed.emit(list(msg.data))
 
 
+class StatusBridge(QObject):
+    """
+    Computes the Control Panel's read-only vehicle-status model.
+
+    ROS callbacks (via ros_bridge's existing per-message signals) only
+    record a raw (value, receipt-time) pair; a QTimer at
+    freshness.STATUS_PUSH_MS classifies freshness for every field and
+    pushes the model to QML — never the other way around (PANEL-13,
+    PANEL-14).
+    """
+    status_changed = pyqtSignal()
+
+    def __init__(self, node: Node, ros_bridge: ROSQmlBridge,
+                 sonar_bridge: SonarBridge,
+                 controller_bridge: ControllerBridge):
+        super().__init__()
+        self._node = node
+        self._raw = {}
+        self._node_last_seen = {}
+
+        self._node.declare_parameter(
+            'expected_nodes', freshness.DEFAULT_EXPECTED_NODES)
+
+        ros_bridge.depth_changed.connect(
+            lambda v: self.record('depth', v))
+        ros_bridge.rov_armed_received.connect(
+            lambda v: self.record('armed', v))
+        ros_bridge.roll_changed.connect(
+            lambda v: self.record('roll', v))
+        ros_bridge.pitch_changed.connect(
+            lambda v: self.record('pitch', v))
+        ros_bridge.yaw_changed.connect(
+            lambda v: self.record('yaw', v))
+        ros_bridge.temperature_changed.connect(
+            lambda v: self.record('water_temp', v))
+        ros_bridge.control_active_changed.connect(
+            lambda v: self.record('control_active', v))
+        sonar_bridge.distance_changed.connect(
+            lambda v: self.record('sonar_range', v))
+        sonar_bridge.confidence_changed.connect(
+            lambda v: self.record('sonar_confidence', v))
+        # Seeds control_mode from the tuner's existing parameter read --
+        # no new client, no new call (PANEL-14, D-02).
+        controller_bridge.params_loaded.connect(self._on_params_loaded)
+
+        self._node.create_subscription(
+            ThrusterStatuses, '/thruster_status',
+            self._cb_thruster_status, PoliciesUtils.sensor_qos)
+        self._node.create_subscription(
+            FluidPressure, 'barometer_pressure',
+            self._cb_pressure, PoliciesUtils.sensor_qos)
+        self._node.create_subscription(
+            DiagnosticArray, 'pi_health',
+            self._cb_pi_health, PoliciesUtils.sensor_qos)
+        # Read-only: reports the controller's own parameter-set calls,
+        # adds no parameter-set path of its own (PANEL-14, D-02).
+        self._node.create_subscription(
+            ParameterEvent, '/parameter_events',
+            self._cb_parameter_event, qos_profile_parameter_events)
+
+        self._node_timer = QTimer()
+        self._node_timer.timeout.connect(self._poll_nodes)
+        self._node_timer.start(freshness.NODE_POLL_MS)
+        self._poll_nodes()
+
+        self._status = freshness.build_status(
+            self._raw, time.monotonic(),
+            expected_nodes=self._expected_nodes(),
+            node_last_seen=self._node_last_seen)
+
+        self._push_timer = QTimer()
+        self._push_timer.timeout.connect(self.refresh)
+        self._push_timer.start(freshness.STATUS_PUSH_MS)
+
+    @pyqtProperty('QVariant', notify=status_changed)
+    def vehicleStatus(self):
+        return self._status
+
+    def _expected_nodes(self):
+        return self._node.get_parameter('expected_nodes').value
+
+    def record(self, key, value):
+        self._raw[key] = (value, time.monotonic())
+
+    def _cb_thruster_status(self, msg: ThrusterStatuses):
+        self.record('thrusters', list(msg.thruster_pwms))
+
+    def _cb_pressure(self, msg: FluidPressure):
+        self.record('pressure', msg.fluid_pressure)
+
+    def _cb_pi_health(self, msg: DiagnosticArray):
+        kv = {}
+        for status in msg.status:
+            for item in status.values:
+                kv[item.key] = item.value
+        self.record('pi_health', kv)
+
+    def _on_params_loaded(self, params):
+        if 'control_mode' in params:
+            self.record('control_mode', params['control_mode'])
+
+    def _cb_parameter_event(self, msg: ParameterEvent):
+        if msg.node != ControllerBridge.TARGET_NODE:
+            return
+        for p in list(msg.new_parameters) + list(msg.changed_parameters):
+            if p.name == 'control_mode':
+                self.record('control_mode', p.value.integer_value)
+
+    def _poll_nodes(self):
+        live = set(self._node.get_node_names())
+        names = set(self._expected_nodes())
+        names.add(freshness.JOY_NODE)
+        names.add(freshness.CONTROLLER_NODE)
+        now = time.monotonic()
+        for name in names:
+            if name in live:
+                self._node_last_seen[name] = now
+
+    def refresh(self, now=None):
+        if now is None:
+            now = time.monotonic()
+        model = freshness.build_status(
+            self._raw, now,
+            expected_nodes=self._expected_nodes(),
+            node_last_seen=self._node_last_seen)
+        if model != self._status:
+            for line in freshness.badge_transitions(self._status, model):
+                self._node.get_logger().info(line)
+            self._status = model
+            self.status_changed.emit()
+
+
 def main():
     rclpy.init(args=sys.argv)
     node = Node('gui_node')
@@ -719,10 +867,12 @@ def main():
     bridge            = ROSQmlBridge(node)
     sonar_bridge      = SonarBridge(node, sonar_renderer)
     controller_bridge = ControllerBridge(node)
+    status_bridge     = StatusBridge(node, bridge, sonar_bridge, controller_bridge)
 
     engine.rootContext().setContextProperty("RosBridge",        bridge)
     engine.rootContext().setContextProperty("SonarBridge",      sonar_bridge)
     engine.rootContext().setContextProperty("ControllerBridge", controller_bridge)
+    engine.rootContext().setContextProperty("StatusBridge",     status_bridge)
 
     package_share_dir = get_package_share_directory('gui_pkg')
     qml_file_path = os.path.join(package_share_dir, 'qml', 'main.qml')
