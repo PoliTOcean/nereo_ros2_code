@@ -244,6 +244,23 @@ def test_control_panel_loads():
         for token in banned:
             assert token not in message, message
 
+    # G-06-3a: the group rows inside the ScrollView must span the panel
+    # like the control-mode row above it, not shrink to their implicit
+    # width (which overlapped each row's label and value on the bench).
+    obj.show()
+    for _ in range(10):
+        QCoreApplication.processEvents()
+
+    def walk(item):
+        yield item
+        for child in item.childItems():
+            yield from walk(child)
+
+    widths = [item.width() for item in walk(obj.contentItem())
+              if item.property('row') is not None]
+    assert widths, 'no StatusRow rendered'
+    assert max(widths) - min(widths) <= 20, widths
+
 
 def test_header_bar_loads():
     messages = []

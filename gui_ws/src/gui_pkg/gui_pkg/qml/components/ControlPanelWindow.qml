@@ -191,12 +191,16 @@ Window {
                 radius: 4
 
                 ScrollView {
+                    id: groupsScroll
                     anchors.fill: parent
                     anchors.margins: 6
                     clip: true
 
+                    // Not parent.width: inside a ScrollView the parent is
+                    // the content item, whose width follows this column's
+                    // implicit width, so the rows collapse and overlap.
                     ColumnLayout {
-                        width: parent.width
+                        width: groupsScroll.availableWidth
                         spacing: 10
 
                         Repeater {
